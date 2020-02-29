@@ -10,27 +10,39 @@ use libp2p::core::{Negotiated, UpgradeInfo};
 use libp2p::{InboundUpgrade, OutboundUpgrade};
 use std::pin::Pin;
 
+pub trait RPCProtocol: UpgradeInfo {
+    type Request: RPCRequest + Clone;
+    type Response: Clone;
+
+    type InboundCodec: Encoder<Item = Self::Response> + Decoder<Item = Self::Request>;
+    fn inbound_codec(&self, protocol: <Self as UpgradeInfo>::Info) -> Self::InboundCodec;
+
+    type OutboundCodec: Encoder<Item = Self::Request> + Decoder<Item = Self::Response>;
+    fn outbound_codec(&self, protocol: <Self as UpgradeInfo>::Info) -> Self::OutboundCodec;
+}
+
 /// Protocol upgrade for inbound RPC requests. Currently supports Blocksync.
 #[derive(Debug, Clone)]
-pub struct RPCInbound;
+pub struct RPCInbound<P>(pub P);
 
-impl UpgradeInfo for RPCInbound {
-    type Info = &'static [u8];
-    type InfoIter = Vec<Self::Info>;
+impl<P: RPCProtocol> UpgradeInfo for RPCInbound<P> {
+    type Info = P::Info;
+    type InfoIter = P::InfoIter;
 
     fn protocol_info(&self) -> Self::InfoIter {
-        vec![b"/fil/sync/blk/0.0.1"]
+        self.0.protocol_info()
     }
 }
 
 pub type InboundFramed<TSocket> = Framed<TSocket, InboundCodec>;
-pub type InboundOutput<TSocket> = (RPCRequest, InboundFramed<TSocket>);
+pub type InboundOutput<TSocket, P> = (<P as RPCProtocol>::Request, InboundFramed<TSocket>);
 
-impl<TSocket> InboundUpgrade<TSocket> for RPCInbound
+impl<TSocket, P> InboundUpgrade<TSocket> for RPCInbound<P>
 where
+    P: RPCProtocol,
     TSocket: AsyncWrite + AsyncRead + Unpin + Send + 'static,
 {
-    type Output = InboundOutput<TSocket>;
+    type Output = InboundOutput<TSocket, P>;
     type Error = RPCError;
     #[allow(clippy::type_complexity)]
     type Future = Pin<Box<dyn Future<Output = Result<Self::Output, Self::Error>> + Send>>;

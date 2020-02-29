@@ -1,10 +1,7 @@
 // Copyright 2020 ChainSafe Systems
 // SPDX-License-Identifier: Apache-2.0, MIT
 
-use super::{
-    InboundCodec, OutboundFramed, RPCError, RPCEvent, RPCInbound, RPCOutbound, RPCResponse,
-    RequestId,
-};
+use super::{OutboundFramed, RPCError, RPCEvent, RPCInbound, RPCOutbound, RPCProtocol, RequestId};
 use fnv::FnvHashMap;
 use futures::prelude::*;
 use futures::{AsyncRead, AsyncWrite};
@@ -24,21 +21,21 @@ use std::{
 /// The time (in seconds) before a substream that is awaiting a response from the user times out.
 pub const RESPONSE_TIMEOUT: u64 = 10;
 
-pub struct RPCHandler<TSubstream>
+pub struct RPCHandler<TSubstream, P: RPCProtocol>
 where
     TSubstream: AsyncRead + AsyncWrite,
 {
     /// Upgrade configuration for RPC protocol.
-    listen_protocol: SubstreamProtocol<RPCInbound>,
+    listen_protocol: SubstreamProtocol<RPCInbound<P>>,
 
     /// If `Some`, something bad happened and we should shut down the handler with an error.
     pending_error: Option<ProtocolsHandlerUpgrErr<RPCError>>,
 
     /// Queue of events to produce in `poll()`.
-    events_out: SmallVec<[RPCEvent; 4]>,
+    events_out: SmallVec<[RPCEvent<P::Request, P::Response>; 4]>,
 
     /// Queue of outbound substreams to open.
-    dial_queue: SmallVec<[RPCEvent; 4]>,
+    dial_queue: SmallVec<[RPCEvent<P::Request, P::Response>; 4]>,
 
     /// Current number of concurrent outbound substreams being opened.
     dial_negotiated: u32,
@@ -47,7 +44,7 @@ where
     inbound_substreams: FnvHashMap<RequestId, WaitingResponse<TSubstream>>,
 
     /// The vector of outbound substream states to progress.
-    outbound_substreams: Vec<SubstreamState<TSubstream>>,
+    outbound_substreams: Vec<SubstreamState<TSubstream, P>>,
 
     /// Sequential ID for new substreams.
     current_substream_id: RequestId,
@@ -114,7 +111,7 @@ struct WaitingResponse<TSubstream> {
 }
 
 /// State of the outbound substream, opened either by us or by the remote.
-enum SubstreamState<TSubstream>
+enum SubstreamState<TSubstream, P: RPCProtocol>
 where
     TSubstream: AsyncRead + AsyncWrite,
 {
@@ -126,7 +123,7 @@ where
     /// Request has been sent, awaiting response
     PendingResponse {
         substream: OutboundFramed<TSubstream>,
-        event: RPCEvent,
+        event: RPCEvent<P::Request, P::Response>,
         timeout: Instant,
     },
 }

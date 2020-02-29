@@ -4,6 +4,7 @@
 #![recursion_limit = "1024"]
 
 mod behaviour;
+pub mod blocksync;
 mod config;
 pub mod rpc;
 mod service;

@@ -4,7 +4,7 @@
 use async_std::sync::Sender;
 use blocks::TipSetKeys;
 use forest_libp2p::{
-    rpc::{BlockSyncRequest, RPCEvent, RPCRequest, RequestId},
+    rpc::{BlockSyncRequest, RPCEvent<P::Request, P::Response>, RPCRequest, RequestId},
     NetworkMessage,
 };
 use libp2p::core::PeerId;

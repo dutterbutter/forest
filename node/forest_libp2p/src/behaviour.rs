@@ -24,7 +24,8 @@ pub struct ForestBehaviour<TSubstream: AsyncRead + AsyncWrite + Unpin + Send + '
     pub mdns: Mdns<TSubstream>,
     pub ping: Ping<TSubstream>,
     pub identify: Identify<TSubstream>,
-    pub rpc: RPC<TSubstream>,
+    pub blocksync: RPC<TSubstream, >,
+    pub hello: RPC<TSubstream>,
     #[behaviour(ignore)]
     events: Vec<ForestBehaviourEvent>,
 }
@@ -40,7 +41,7 @@ pub enum ForestBehaviourEvent {
         topics: Vec<TopicHash>,
         message: Vec<u8>,
     },
-    RPC(PeerId, RPCEvent),
+    BlockSync(PeerId, RPCEvent<BlockSync>),
 }
 
 impl<TSubstream: AsyncRead + AsyncWrite + Unpin + Send + 'static>
@@ -126,7 +127,7 @@ impl<TSubstream: AsyncRead + AsyncWrite + Unpin + Send + 'static>
     }
 }
 impl<TSubstream: AsyncRead + AsyncWrite + Unpin + Send + 'static>
-    NetworkBehaviourEventProcess<RPCMessage> for ForestBehaviour<TSubstream>
+    NetworkBehaviourEventProcess<RPCMessage<P>> for ForestBehaviour<TSubstream>
 {
     fn inject_event(&mut self, event: RPCMessage) {
         match event {

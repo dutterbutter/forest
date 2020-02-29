@@ -147,7 +147,7 @@ where
         loop {
             select! {
                 network_msg = nw.next().fuse() => match network_msg {
-                    Some(event) => info!("received some other event: {:?}", event),
+                    Some(event) => (),
                     None => break,
                 }
             }

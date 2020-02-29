@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0, MIT
 
 use super::handler::RPCHandler;
-use super::RPCEvent;
+use super::{RPCEvent, RPCProtocol};
 use futures::prelude::*;
 use futures::task::Context;
 use futures_util::task::Poll;
@@ -14,14 +14,14 @@ use libp2p::{Multiaddr, PeerId};
 use std::marker::PhantomData;
 
 /// The RPC behaviour that gets consumed by the Swarm.
-pub struct RPC<TSubstream> {
+pub struct RPC<TSubstream, P: RPCProtocol> {
     /// Queue of events to processed.
-    events: Vec<NetworkBehaviourAction<RPCEvent, RPCMessage>>,
+    events: Vec<NetworkBehaviourAction<RPCEvent<P::Request, P::Response>, RPCMessage<P>>>,
     /// Pins the generic substream.
     marker: PhantomData<TSubstream>,
 }
 
-impl<TSubstream> RPC<TSubstream> {
+impl<TSubstream, P: RPCProtocol> RPC<TSubstream, P> {
     /// Creates a new RPC behaviour
     pub fn new() -> Self {
         RPC::default()
@@ -34,7 +34,7 @@ impl<TSubstream> RPC<TSubstream> {
     }
 }
 
-impl<TSubstream> Default for RPC<TSubstream> {
+impl<TSubstream, P> Default for RPC<TSubstream, P> {
     fn default() -> Self {
         RPC {
             events: vec![],
@@ -45,17 +45,18 @@ impl<TSubstream> Default for RPC<TSubstream> {
 
 /// Messages sent to the user from the RPC protocol.
 #[derive(Debug)]
-pub enum RPCMessage {
-    RPC(PeerId, RPCEvent),
+pub enum RPCMessage<P: RPCProtocol> {
+    RPC(PeerId, RPCEvent<P::Request, P::Response>),
     PeerDialed(PeerId),
     PeerDisconnected(PeerId),
 }
 
-impl<TSubstream> NetworkBehaviour for RPC<TSubstream>
+impl<TSubstream, P> NetworkBehaviour for RPC<TSubstream, P>
 where
+    P: RPCProtocol + Default + Clone,
     TSubstream: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    type ProtocolsHandler = RPCHandler<TSubstream>;
+    type ProtocolsHandler = RPCHandler<TSubstream, P>;
     type OutEvent = RPCMessage;
     fn new_handler(&mut self) -> Self::ProtocolsHandler {
         RPCHandler::default()
