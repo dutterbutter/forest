@@ -1,12 +1,13 @@
 // Copyright 2020 ChainSafe Systems
 // SPDX-License-Identifier: Apache-2.0, MIT
 
+use crate::errors::Error;
 use blocks::Tipset;
 use std::sync::Arc;
 
 /// SyncBucket defines a bucket of tipsets to sync
-#[derive(Clone, Default)]
-struct SyncBucket {
+#[derive(Clone, Default, PartialEq, PartialOrd, Ord, Eq)]
+pub struct SyncBucket {
     tips: Vec<Arc<Tipset>>,
 }
 
@@ -24,6 +25,7 @@ impl SyncBucket {
         // return max value pointer
         self.tips.iter().max_by_key(|a| a.weight()).cloned()
     }
+    /// Returns true if tipset param belongs to same chain as SyncBucket
     fn same_chain_as(&mut self, ts: &Tipset) -> bool {
         for t in self.tips.iter_mut() {
             // TODO Confirm that comparing keys will be sufficient on full tipset impl
@@ -31,9 +33,9 @@ impl SyncBucket {
                 return true;
             }
         }
-
         false
     }
+    /// Adds tipset to SyncBucket
     fn add(&mut self, ts: Arc<Tipset>) {
         if !self.tips.iter().any(|t| *t == ts) {
             self.tips.push(ts);
@@ -42,12 +44,13 @@ impl SyncBucket {
 }
 
 /// Set of tipset buckets
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub(crate) struct SyncBucketSet {
     buckets: Vec<SyncBucket>,
 }
 
 impl SyncBucketSet {
+    /// Inserts valid SyncBuckets forming a SyncBucketSet
     pub(crate) fn insert(&mut self, tipset: Arc<Tipset>) {
         for b in self.buckets.iter_mut() {
             if b.same_chain_as(&tipset) {
@@ -57,6 +60,16 @@ impl SyncBucketSet {
         }
         self.buckets.push(SyncBucket::new(vec![tipset]))
     }
+    /// Removes the SyncBucket with heaviest weighted Tipset from SyncBucketSet
+    pub(crate) fn _pop(&mut self) -> Result<(), Error> {
+        if let Some(heaviest_bucket) = self.buckets().iter().max_by_key(|b| b.heaviest_tipset()) {
+            self.clone()._remove(heaviest_bucket);
+            Ok(())
+        } else {
+            Err(Error::Other("No heaviest bucket found".to_string()))
+        }
+    }
+    /// Returns heaviest weighted Tipset in SyncBucketSet
     pub(crate) fn heaviest(&self) -> Option<Arc<Tipset>> {
         // Transform max values from each bucket into a Vec
         let vals: Vec<Arc<Tipset>> = self
@@ -65,8 +78,31 @@ impl SyncBucketSet {
             .filter_map(|b| b.heaviest_tipset())
             .collect();
 
-        // Return the heaviest tipset bucket
+        // Return the heaviest tipset
         vals.iter().max_by_key(|b| b.weight()).cloned()
+    }
+    /// Updates SyncBucketSet by removing specified SyncBucket
+    pub(crate) fn _remove(&mut self, ts_bucket: &SyncBucket) {
+        let vals: Vec<SyncBucket> = self
+            .buckets
+            .clone()
+            .into_iter()
+            .filter(|b| b != ts_bucket)
+            .collect();
+
+        self.buckets = vals;
+    }
+    /// Removes SyncBucket specified by provided Tipset
+    pub(crate) fn _pop_related(&mut self, ts: &Tipset) {
+        for b in self.buckets() {
+            if b.clone().same_chain_as(ts) {
+                self.clone()._remove(b)
+            }
+        }
+    }
+    /// Returns a vector of SyncBuckets
+    pub(crate) fn buckets(&self) -> &Vec<SyncBucket> {
+        &self.buckets
     }
 }
 

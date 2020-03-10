@@ -84,7 +84,7 @@ where
         network_send: Sender<NetworkMessage>,
         network_rx: Receiver<NetworkEvent>,
     ) -> Result<Self, Error> {
-        let sync_manager = SyncManager::default();
+        let sync_manager = SyncManager::new();
 
         let chain_store = ChainStore::new(db);
         let _genesis = match chain_store.genesis()? {
@@ -148,7 +148,7 @@ where
     /// informs the syncer about a new potential tipset
     /// This should be called when connecting to new peers, and additionally
     /// when receiving new blocks from the network
-    pub fn inform_new_head(&self, from: &PeerId, fts: &FullTipset) -> Result<(), Error> {
+    pub fn inform_new_head(&mut self, from: &PeerId, fts: &FullTipset) -> Result<(), Error> {
         // check if full block is nil and if so return error
         if fts.blocks().is_empty() {
             return Err(Error::NoBlocks);
