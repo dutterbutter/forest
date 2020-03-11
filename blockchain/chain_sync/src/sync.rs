@@ -194,7 +194,7 @@ where
             // Store incoming block header
             self.chain_store.persist_headers(&fts.tipset()?)?;
             // Set peer head
-            self.sync_manager.set_peer_head(from, fts.tipset()?);
+            self.sync_manager.set_peer_head(from, Arc::new(fts.tipset()?));
         }
         // incoming tipset from miners does not appear to be better than our best chain, ignoring for now
         Ok(())

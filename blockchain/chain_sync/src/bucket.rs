@@ -108,6 +108,13 @@ impl SyncBucketSet {
     pub(crate) fn buckets(&self) -> &Vec<SyncBucket> {
         &self.buckets
     }
+    /// Returns true if SyncBucket is empty
+    pub(crate) fn is_empty(&self) -> bool {
+        if self.buckets.len() != 0 {
+            return false
+        }
+        true
+    }
 }
 
 #[cfg(test)]
