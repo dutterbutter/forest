@@ -1,7 +1,9 @@
 // Copyright 2020 ChainSafe Systems
 // SPDX-License-Identifier: Apache-2.0, MIT
 
-use super::bucket::{SyncBucketSet, SyncBucket};
+#![allow(dead_code)]
+
+use super::bucket::{SyncBucket, SyncBucketSet};
 use async_std::prelude::*;
 use async_std::sync::{channel, Receiver, Sender};
 use async_std::task;
@@ -10,20 +12,22 @@ use libp2p::core::PeerId;
 use log::{info, warn};
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::errors::Error;
 
 /// Manages tipsets pulled from network to be synced
 #[derive(Clone)]
 pub struct SyncManager {
-    // syncing scheduler
-    sync_queue: SyncBucketSet,
-    next_sync_target: SyncBucket,
-
-    _peer_heads: HashMap<PeerId, Arc<Tipset>>,
-    receiver: Receiver<SyncEvents>,
-    sender: Sender<SyncEvents>,
+    /// Represents current sync status
     status: SyncStatus,
-  //  doSync: fn(),
+    /// Queue for
+    sync_queue: SyncBucketSet,
+    /// Represents next tipset to be synced
+    next_sync_target: SyncBucket,
+    /// Represents peers and proposed tipsets from the network
+    peer_heads: HashMap<PeerId, Arc<Tipset>>,
+
+    /// Syncing channels
+    staging_receiver: Receiver<SyncEvents>,
+    staging_sender: Sender<SyncEvents>,
 }
 
 /// Results of the sync process
@@ -32,20 +36,43 @@ struct SyncResults {
     success: bool,
 }
 
-#[derive(Clone)]
-pub enum SyncEvents {
-    NewTipsets { _tipsets: Arc<Tipset> },
-    _Worker { _tipsets: Tipset },
-    Targets { _tipsets: Arc<Tipset> },
-    _Results { _tipsets: Arc<Tipset>, _success: bool },
+impl SyncResults {
+    /// constructor
+    pub fn new(ts: Arc<Tipset>, success: bool) -> Self {
+        Self {
+            tipsets: ts,
+            success,
+        }
+    }
 }
 
-#[derive(PartialEq, Debug, Clone)]
-enum SyncStatus {
-    Init, 
-    Scheduled,
+/// Sync events...
+#[derive(Clone)]
+pub enum SyncEvents {
+    /// New incoming tipsets from the network tbe be potentially synced
+    NewTipsets { tipsets: Arc<Tipset> },
+    /// TBD
+    _Worker { _tipsets: Tipset },
+    /// Tipsets that will be attempted to be synced
+    Targets { _tipsets: Arc<Tipset> },
+    /// Results of syncing tipsets
+    Results {
+        _tipsets: Arc<Tipset>,
+        _success: bool,
+    },
+}
+
+/// SyncStatus represents the current state of the sync manager
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub enum SyncStatus {
+    /// Initial sync state
+    Init,
+    /// Indicates target tipsets have been added to the queue
     Ready,
-    _Completed,
+    /// Indicates tipsets will be synced in the near future
+    Scheduled,
+    /// Indicates the completion of a successful sync
+    Completed,
 }
 
 impl Default for SyncManager {
@@ -55,128 +82,59 @@ impl Default for SyncManager {
 }
 
 impl SyncManager {
+    /// constructor
     pub fn new() -> Self {
-        let (sender, receiver) = channel(20);
+        let (staging_sender, staging_receiver) = channel(20);
+
         Self {
             sync_queue: SyncBucketSet::default(),
             next_sync_target: SyncBucket::default(),
-            _peer_heads: HashMap::new(),
-            receiver,
-            sender,
+            peer_heads: HashMap::new(),
+            staging_receiver,
+            staging_sender,
             status: SyncStatus::Init,
         }
     }
-    pub fn start(&self) {
-        todo!()
+    /// start....
+    pub async fn start(self) {
+        self._sync_triage().await;
     }
-    pub fn stop(&self) {
-        todo!()
-    }
-    /// Schedules a new tipset to be handled by the sync manager
-    async fn schedule_tipset(&mut self, tipset: Arc<Tipset>) -> Result<(), Error> {
-        info!("scheduling incoming tipsets to sync: {:?}", tipset.cids());
 
-        // check sync status if indicates tipsets are ready to be synced
-        if self.get_status() == SyncStatus::Ready {
-            // set the sync status to scheduled 
-            self.set_status(SyncStatus::Scheduled);
-            // send SELECTED tipsets to be synced via the sync_worker
-            self.sender.send(SyncEvents::Targets { _tipsets: tipset }).await
-        }
-
-        // TODO logic for dealing with tipset already included in active sync
-
-        // check if status indicates SCHEDULED; insert into bucket for future syncing
-        if self.get_status() == SyncStatus::Scheduled {
-            self.sync_queue.insert(tipset);
-        }
-
-        if !self.next_sync_target.is_empty() && self.next_sync_target.same_chain_as(tipset) {
-            self.next_sync_target.add(tipset);
-        } else {
-            self.sync_queue.insert(tipset);
-            if self.next_sync_target.is_empty() {
-                self.next_sync_target = self.sync_queue._pop()?;
-                // TODO understand how worker chan iteracts with sync target chan
-            }
-        }
-    
-        Ok(())
-    }
-    /// Triages sync events 
-    async fn sync_triage<'a>(&'a self) {
-        let mut receiver = self.receiver.clone();
-        task::spawn(async move {
-            loop {
-                match receiver.next().await {
-                    Some(SyncEvents::NewTipsets { _tipsets }) => {
-                        self.schedule_tipset(_tipsets);
-                    }
-                    Some(SyncEvents::_Results { _tipsets, _success }) => {
-                        // do something
-                        self.process_result(SyncResults{
-                            tipsets: _tipsets,
-                            success: _success
-                        });
-                    }
-                    None => break,
+    /// Sets
+    pub async fn set_peer_head(&mut self, peer: &PeerId, ts: Arc<Tipset>) {
+        // update peer heads map
+        self.peer_heads.insert(peer.clone(), ts.clone());
+        if self.get_status() == &SyncStatus::Init {
+            // ensure we have at least one peer to begin syncing process
+            // TODO make into const MIN_PEER
+            if self.peer_count() >= 1 {
+                if let Some(best_target) = self.select_sync_target() {
+                    self.set_status(SyncStatus::Ready);
+                    self.staging_sender
+                        .send(SyncEvents::NewTipsets {
+                            tipsets: best_target,
+                        })
+                        .await;
                 }
             }
-        });
-    }
-    /// Worker that initiates ChainSyncer to sync with Tipset
-    async fn sync_worker<'a>(&'a self) {
-        let mut receiver = self.receiver.clone();
-
-        task::spawn(async move {
-            loop {
-                match receiver.next().await {
-                    Some(SyncEvents::Targets { _tipsets }) => {
-                        // TODO call ChainSyncer sync here!!!
-                        self.sender.send(SyncEvents::_Results {
-                            _tipsets: _tipsets,
-                            _success: true
-                        }).await
-                    }
-                    Some(SyncEvents::NewTipsets { _tipsets }) => {
-                        // do something
-                    }
-                    Some(SyncEvents::_Results { _tipsets, _success }) => {
-                        // do something
-                    }
-                    None => break,
-                }
-            }
-        });
-    }
-    /// Process results of sync
-    fn process_result(&self, results: SyncResults) -> Result<(), Error> {
-        if results.success && self.get_status() != SyncStatus::_Completed {
-            self.set_status(SyncStatus::_Completed);
+            info!("sync bootstrap has {} peers", self.peer_count());
+            return;
         }
-        // TODO remove tipset from active sync map?
-       
-        // TODO deal with active sync tipsets
 
-        if self.next_sync_target.is_empty() && !self.sync_queue.is_empty() {
-            let next = self.sync_queue._pop()?;
-            if !next.is_empty() {
-                self.next_sync_target = next;
-                // TODO again worker chan and sync target?
-            } 
-        }
-        Ok(())
+        self.staging_sender
+            .send(SyncEvents::NewTipsets { tipsets: ts })
+            .await;
     }
 
-    /// Retrieves the heaviest tipset in the sync queue
+    /// Retrieves the heaviest tipset in the sync queue; considered best target head
     pub fn select_sync_target(&mut self) -> Option<Arc<Tipset>> {
         let mut peer_heads = Vec::new();
-        for (_, ts) in self._peer_heads.clone() {
+        for (_, ts) in self.peer_heads.clone() {
             peer_heads.push(ts);
         }
         peer_heads.sort_by_key(|header| (*header.epoch()));
 
-        for (_, ts) in self._peer_heads.clone() {
+        for (_, ts) in self.peer_heads.clone() {
             self.sync_queue.insert(ts);
         }
 
@@ -185,40 +143,137 @@ impl SyncManager {
         }
         self.sync_queue.heaviest()
     }
-    /// Sets
-    pub fn set_peer_head(&mut self, peer: &PeerId, ts: Arc<Tipset>) -> Result<(), Error> {
-        self._peer_heads.insert(*peer, ts);
-        if self.get_status() == SyncStatus::Init {
-            if self._peer_count() >= 1 {
-                let target = self.select_sync_target();
-                self.set_status(SyncStatus::Ready);
-                self.sender.send(SyncEvents::NewTipsets{ _tipsets: target.unwrap() });
+
+    /// Triages sync events
+    async fn _sync_triage(mut self) {
+        let mut receiver = self.staging_receiver.clone();
+        task::spawn(async move {
+            loop {
+                match receiver.next().await {
+                    Some(SyncEvents::NewTipsets { tipsets }) => {
+                        self.schedule_tipset(tipsets).await;
+                    }
+                    Some(SyncEvents::_Worker { _tipsets }) => {
+                        // do something
+                    }
+                    Some(SyncEvents::Targets { _tipsets }) => {
+                        // TODO call ChainSyncer sync here!!!
+
+                        self.staging_sender
+                            .send(SyncEvents::Results {
+                                _tipsets,
+                                _success: true,
+                            })
+                            .await
+                    }
+                    Some(SyncEvents::Results { _tipsets, _success }) => {
+                        self.process_result(SyncResults::new(_tipsets, _success))
+                            .await;
+                    }
+                    None => break,
+                }
             }
-            info!("sync bootstrap has {} peers", self._peer_count());
-            return Ok(());
-        }
-        
-        self.sender.send(SyncEvents::NewTipsets{ _tipsets: ts });
-        Ok(())
+        });
     }
 
-    fn schedule_work_sent(&mut self) -> Result<(), Error> {
-        let hts = self.next_sync_target.heaviest_tipset();
+    /// Schedules a new tipset to be handled by the sync manager
+    async fn schedule_tipset(&mut self, tipset: Arc<Tipset>) {
+        info!("scheduling incoming tipsets to sync: {:?}", tipset.cids());
+
+        // check sync status if indicates tipsets are ready to be synced
+        if self.get_status() == &SyncStatus::Ready {
+            // set the sync status to scheduled
+            self.set_status(SyncStatus::Scheduled);
+            // send tipsets to be synced
+            self.staging_sender
+                .send(SyncEvents::Targets {
+                    _tipsets: tipset.clone(),
+                })
+                .await
+        }
+
+        // TODO logic for dealing with tipset already included in active sync
+
+        // check if status indicates SCHEDULED; insert into bucket for future syncing
+        if self.get_status() == &SyncStatus::Scheduled {
+            self.sync_queue.insert(tipset.clone());
+        }
+
+        if !self.next_sync_target.is_empty() && self.next_sync_target.same_chain_as(tipset.clone())
+        {
+            self.next_sync_target.add(tipset);
+        } else {
+            self.sync_queue.insert(tipset.clone());
+            if self.next_sync_target.is_empty() {
+                if let Some(target_bucket) = self.sync_queue.pop() {
+                    self.next_sync_target = target_bucket;
+                    // TODO understand how worker chan interacts with sync target chan
+                }
+            }
+        }
+    }
+
+    /// Process results of synced tipsets from the network
+    async fn process_result(&mut self, results: SyncResults) {
+        if results.success && self.get_status() != &SyncStatus::Completed {
+            self.set_status(SyncStatus::Completed);
+        }
+        // TODO remove tipset from active sync map
+        // TODO deal with active sync tipsets
+
+        if self.next_sync_target.is_empty() && !self.sync_queue.is_empty() {
+            if let Some(next) = self.sync_queue.pop() {
+                self.next_sync_target = next;
+                // TODO again worker chan and sync target
+            }
+        }
+    }
+
+    // /// Worker that initiates ChainSyncer to sync with Tipset
+    // async fn sync_worker(mut self) {
+    //     let mut receiver = self.exec_receiver.clone();
+
+    //     task::spawn(async move {
+    //         loop {
+    //             match receiver.next().await {
+    //                 Some(SyncTarget::_Targets { _tipsets }) => {
+    //                     // TODO call ChainSyncer sync here!!!
+    //                     self.exec_sender
+    //                         .send(SyncTarget::_Results {
+    //                             _tipsets,
+    //                             _success: true,
+    //                         })
+    //                         .await
+    //                 }
+    //                 Some(SyncTarget::_Results { _tipsets, _success }) => {
+    //                     self.process_result(SyncResults::_new(_tipsets, _success));
+    //                 }
+    //                 None => break,
+    //             }
+    //         }
+    //     });
+    // }
+
+    /// schedule work sent
+    fn _schedule_work_sent(&mut self) {
+        let _hts = self.next_sync_target.heaviest_tipset();
         if !self.sync_queue.is_empty() {
-            self.next_sync_target = self.sync_queue._pop()?;
+            if let Some(next) = self.sync_queue.pop() {
+                self.next_sync_target = next;
+                // TODO again worker chan and sync target
+            }
         } else {
             // do something
         }
-        Ok(())
     }
 
     /// Returns the number of peers
-    fn _peer_count(&self) -> usize {
-        self._peer_heads.clone().keys().len()
+    fn peer_count(&self) -> usize {
+        self.peer_heads.clone().keys().len()
     }
     /// Returns the managed sync status
-    pub fn get_status(&self) -> SyncStatus {
-        self.status
+    pub fn get_status(&self) -> &SyncStatus {
+        &self.status
     }
     /// Sets the managed sync status
     pub fn set_status(&mut self, new_status: SyncStatus) {

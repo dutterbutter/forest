@@ -1,7 +1,6 @@
 // Copyright 2020 ChainSafe Systems
 // SPDX-License-Identifier: Apache-2.0, MIT
 
-use crate::errors::Error;
 use blocks::Tipset;
 use std::sync::Arc;
 
@@ -26,7 +25,7 @@ impl SyncBucket {
         self.tips.iter().max_by_key(|a| a.weight()).cloned()
     }
     /// Returns true if tipset param belongs to same chain as SyncBucket
-    pub fn same_chain_as(&mut self, ts: <&Tipset>) -> bool {
+    pub fn same_chain_as(&mut self, ts: Arc<Tipset>) -> bool {
         for t in self.tips.iter_mut() {
             // TODO Confirm that comparing keys will be sufficient on full tipset impl
             if ts.key() == t.key() || ts.key() == t.parents() || ts.parents() == t.key() {
@@ -57,7 +56,7 @@ impl SyncBucketSet {
     /// Inserts valid SyncBuckets forming a SyncBucketSet
     pub(crate) fn insert(&mut self, tipset: Arc<Tipset>) {
         for b in self.buckets.iter_mut() {
-            if b.same_chain_as(&tipset) {
+            if b.same_chain_as(tipset.clone()) {
                 b.add(tipset);
                 return;
             }
@@ -65,12 +64,12 @@ impl SyncBucketSet {
         self.buckets.push(SyncBucket::new(vec![tipset]))
     }
     /// Removes the SyncBucket with heaviest weighted Tipset from SyncBucketSet
-    pub(crate) fn _pop(&mut self) -> Result<SyncBucket, Error> {
+    pub(crate) fn pop(&mut self) -> Option<SyncBucket> {
         if let Some(heaviest_bucket) = self.buckets().iter().max_by_key(|b| b.heaviest_tipset()) {
             self.clone()._remove(heaviest_bucket);
-            Ok(*heaviest_bucket)
+            Some(heaviest_bucket.clone())
         } else {
-            Err(Error::Other("No heaviest bucket found".to_string()))
+            None
         }
     }
     /// Returns heaviest weighted Tipset in SyncBucketSet
@@ -97,9 +96,9 @@ impl SyncBucketSet {
         self.buckets = vals;
     }
     /// Removes SyncBucket specified by provided Tipset
-    pub(crate) fn _pop_related(&mut self, ts: &Tipset) {
+    pub(crate) fn _pop_related(&mut self, ts: Arc<Tipset>) {
         for b in self.buckets() {
-            if b.clone().same_chain_as(ts) {
+            if b.clone().same_chain_as(ts.clone()) {
                 self.clone()._remove(b)
             }
         }
@@ -110,8 +109,8 @@ impl SyncBucketSet {
     }
     /// Returns true if SyncBucket is empty
     pub(crate) fn is_empty(&self) -> bool {
-        if self.buckets.len() != 0 {
-            return false
+        if !self.buckets.is_empty() {
+            return false;
         }
         true
     }

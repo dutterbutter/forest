@@ -175,7 +175,7 @@ where
     /// informs the syncer about a new potential tipset
     /// This should be called when connecting to new peers, and additionally
     /// when receiving new blocks from the network
-    pub fn inform_new_head(&mut self, from: &PeerId, fts: &FullTipset) -> Result<(), Error> {
+    pub async fn inform_new_head(&mut self, from: &PeerId, fts: &FullTipset) -> Result<(), Error> {
         // check if full block is nil and if so return error
         if fts.blocks().is_empty() {
             return Err(Error::NoBlocks);
@@ -194,7 +194,9 @@ where
             // Store incoming block header
             self.chain_store.persist_headers(&fts.tipset()?)?;
             // Set peer head
-            self.sync_manager.set_peer_head(from, Arc::new(fts.tipset()?));
+            self.sync_manager
+                .set_peer_head(from, Arc::new(fts.tipset()?))
+                .await;
         }
         // incoming tipset from miners does not appear to be better than our best chain, ignoring for now
         Ok(())
