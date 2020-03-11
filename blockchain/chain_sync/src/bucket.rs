@@ -26,7 +26,7 @@ impl SyncBucket {
         self.tips.iter().max_by_key(|a| a.weight()).cloned()
     }
     /// Returns true if tipset param belongs to same chain as SyncBucket
-    fn same_chain_as(&mut self, ts: &Tipset) -> bool {
+    pub fn same_chain_as(&mut self, ts: <&Tipset>) -> bool {
         for t in self.tips.iter_mut() {
             // TODO Confirm that comparing keys will be sufficient on full tipset impl
             if ts.key() == t.key() || ts.key() == t.parents() || ts.parents() == t.key() {
@@ -36,10 +36,14 @@ impl SyncBucket {
         false
     }
     /// Adds tipset to SyncBucket
-    fn add(&mut self, ts: Arc<Tipset>) {
+    pub fn add(&mut self, ts: Arc<Tipset>) {
         if !self.tips.iter().any(|t| *t == ts) {
             self.tips.push(ts);
         }
+    }
+    /// Returns true if SyncBucket is empty
+    pub fn is_empty(&self) -> bool {
+        self.tips.is_empty()
     }
 }
 
@@ -61,10 +65,10 @@ impl SyncBucketSet {
         self.buckets.push(SyncBucket::new(vec![tipset]))
     }
     /// Removes the SyncBucket with heaviest weighted Tipset from SyncBucketSet
-    pub(crate) fn _pop(&mut self) -> Result<(), Error> {
+    pub(crate) fn _pop(&mut self) -> Result<SyncBucket, Error> {
         if let Some(heaviest_bucket) = self.buckets().iter().max_by_key(|b| b.heaviest_tipset()) {
             self.clone()._remove(heaviest_bucket);
-            Ok(())
+            Ok(*heaviest_bucket)
         } else {
             Err(Error::Other("No heaviest bucket found".to_string()))
         }
