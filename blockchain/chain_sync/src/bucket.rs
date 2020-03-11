@@ -17,7 +17,7 @@ impl SyncBucket {
         Self { tips }
     }
     /// heaviest_tipset returns the tipset with the max weight
-    fn heaviest_tipset(&self) -> Option<Arc<Tipset>> {
+    pub fn heaviest_tipset(&self) -> Option<Arc<Tipset>> {
         if self.tips.is_empty() {
             return None;
         }

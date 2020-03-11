@@ -28,7 +28,7 @@ pub struct SyncManager {
 
 /// Results of the sync process
 struct SyncResults {
-    tipsets: Tipset,
+    tipsets: Arc<Tipset>,
     success: bool,
 }
 
@@ -114,6 +114,10 @@ impl SyncManager {
                     }
                     Some(SyncEvents::_Results { _tipsets, _success }) => {
                         // do something
+                        self.process_result(SyncResults{
+                            tipsets: _tipsets,
+                            success: _success
+                        });
                     }
                     None => break,
                 }
@@ -197,6 +201,17 @@ impl SyncManager {
         self.sender.send(SyncEvents::NewTipsets{ _tipsets: ts });
         Ok(())
     }
+
+    fn schedule_work_sent(&mut self) -> Result<(), Error> {
+        let hts = self.next_sync_target.heaviest_tipset();
+        if !self.sync_queue.is_empty() {
+            self.next_sync_target = self.sync_queue._pop()?;
+        } else {
+            // do something
+        }
+        Ok(())
+    }
+
     /// Returns the number of peers
     fn _peer_count(&self) -> usize {
         self._peer_heads.clone().keys().len()
