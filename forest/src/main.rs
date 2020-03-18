@@ -4,8 +4,9 @@
 use self::cli::cli;
 mod cli;
 mod logger;
+use async_std::sync::channel;
 use async_std::task;
-use chain_sync::ChainSyncer;
+use chain_sync::{ChainSyncer, NetworkHandler, PeerManager, SyncNetworkContext};
 use db::RocksDb;
 use forest_libp2p::{get_keypair, Libp2pService};
 use libp2p::identity::{ed25519, Keypair};
@@ -79,8 +80,27 @@ fn main() {
         let mut db = RocksDb::new(config.data_dir + "/db");
         db.open().unwrap();
 
-        let chain_syncer = ChainSyncer::new(Arc::new(db), network_send, network_rx).unwrap();
-        chain_syncer.sync().await.unwrap();
+        // Initialize ChainSyncer
+        let (rpc_send, rpc_rx) = channel(20);
+        let (event_send, event_rx) = channel(30);
+        let net_handler = NetworkHandler::new(network_rx, rpc_send, event_send);
+        let peer_manager = Arc::new(PeerManager::default());
+        let network = SyncNetworkContext::new(network_send, rpc_rx, event_rx);
+
+        let chain_syncer = ChainSyncer::new(
+            Arc::new(db),
+            network_send,
+            network_rx,
+            network,
+            net_handler,
+            peer_manager,
+        )
+        .unwrap();
+        // start HELLO protocol
+        net_handler.spawn(&net_handler, Arc::clone(&peer_manager));
+
+        // start
+        chain_syncer.start();
     });
 
     // Block until ctrl-c is hit

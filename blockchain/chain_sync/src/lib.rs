@@ -12,4 +12,6 @@ mod sync;
 pub use self::errors::Error;
 pub use self::manager::SyncManager;
 pub use self::network_context::SyncNetworkContext;
+pub use self::network_handler::NetworkHandler;
+pub use self::peer_manager::PeerManager;
 pub use self::sync::ChainSyncer;
