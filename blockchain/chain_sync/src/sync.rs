@@ -158,22 +158,38 @@ where
     /// Triages sync events to either schedule sync or begin syncing heaviest Tipset targets
     pub async fn sync_triage(mut self) {
         let mut receiver = self.sync_receiver.clone();
-        task::spawn(async move {
-            loop {
-                match receiver.next().await {
-                    // new incoming tipsets to be scheduled
-                    Some(SyncEvents::NewTipsets { tipsets }) => {
-                        self.schedule_tipset(tipsets).await;
-                    }
-                    // heaviest tipset to be synced
-                    Some(SyncEvents::Targets { tipsets }) => {
-                        self.sync(tipsets);
-                    }
-                    None => break,
+        loop {
+            match self.network.receiver.next().await {
+                // new incoming tipsets to be scheduled
+                Some(SyncEvents::NewTipsets { tipsets }) => {
+                    self.schedule_tipset(tipsets).await;
                 }
+                // heaviest tipset to be synced
+                Some(SyncEvents::Targets { tipsets }) => {
+                    self.sync(tipsets);
+                }
+                None => break,
             }
-        });
+        }
     }
+    // pub async fn sync_triage(mut self) {
+    //     let mut receiver = self.sync_receiver.clone();
+    //     task::spawn(async move {
+    //         loop {
+    //             match receiver.next().await {
+    //                 // new incoming tipsets to be scheduled
+    //                 Some(SyncEvents::NewTipsets { tipsets }) => {
+    //                     self.schedule_tipset(tipsets).await;
+    //                 }
+    //                 // heaviest tipset to be synced
+    //                 Some(SyncEvents::Targets { tipsets }) => {
+    //                     self.sync(tipsets);
+    //                 }
+    //                 None => break,
+    //             }
+    //         }
+    //     });
+    // }
     /// Sets
     pub async fn set_peer_head(&mut self, peer: &PeerId, ts: Arc<Tipset>) {
         // update peer heads map
@@ -195,7 +211,6 @@ where
             .send(SyncEvents::NewTipsets { tipsets: ts })
             .await;
     }
-    
     /// Schedules a new tipset to be handled by the sync manager
     async fn schedule_tipset(&mut self, tipset: Arc<Tipset>) {
         info!("Scheduling incoming tipset to sync: {:?}", tipset.cids());
@@ -242,6 +257,17 @@ where
 
         info!("Bootstrapping peers to sync");
 
+        loop {
+            match self.network.receiver.next().await {
+                // new incoming tipsets to be scheduled
+                Some(...some event) => {
+
+                }
+                None => break,
+            }
+            // check if enough peers?
+        }
+
         // Bootstrap peers before syncing
         // TODO increase bootstrap peer count before syncing
         const MIN_PEERS: usize = 1;
@@ -277,11 +303,12 @@ where
         if fts.blocks().is_empty() {
             return Err(Error::NoBlocks);
         }
-        
         for block in fts.blocks() {
             // check bad block cache
             if let Some(bad) = self.bad_blocks.peek(block.cid()) {
-                return Err(Error::Other("InformNewHead called on block marked as bad".to_string()))
+                return Err(Error::Other(
+                    "InformNewHead called on block marked as bad".to_string(),
+                ));
             }
             // validate message data
             self.validate_msg_data(block)?;
@@ -350,8 +377,12 @@ where
     }
 
     /// Returns FullTipset requested from block sync
-    pub async fn fetch_tipset(&self, peer_id: PeerId, tsk: &TipSetKeys) -> Result<FullTipset, String> {
-       Ok(self.network.blocksync_fts(peer_id, tsk, 1).await?)
+    pub async fn fetch_tipset(
+        &self,
+        peer_id: PeerId,
+        tsk: &TipSetKeys,
+    ) -> Result<FullTipset, String> {
+        Ok(self.network.blocksync_fts(peer_id, tsk, 1).await?)
     }
 
     /// Returns a reconstructed FullTipset from store if keys exist

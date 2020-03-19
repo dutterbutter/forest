@@ -36,7 +36,7 @@ impl NetworkHandler {
         }
     }
 
-    pub(crate) fn spawn(&self, peer_manager: Arc<PeerManager>, syncer: ChainSyncer<DB, ST>) {
+    pub(crate) fn spawn(&self, peer_manager: Arc<PeerManager>, syncer: ChainSyncer<DB>) {
         let mut receiver = self.receiver.clone();
         let rpc_send = self.rpc_send.clone();
         let event_send = self.event_send.clone();
