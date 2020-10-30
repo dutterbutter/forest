@@ -149,6 +149,20 @@ jobs:
       - run:
           name: Build Unit Tests
           command: make install
+  publish-docs:
+    executor: test-executor
+    description: Publish documentation to GitHub pages
+    steps:
+      - build_setup
+      - restore_cargo_package_cache
+      - run:
+          name: Build Docs
+          command: cargo doc --no-deps --all-features
+      - run:
+          name: Publish Docs
+          command: scripts/build-rust-docs.sh
+      - persist_to_workspace:
+          root: target/doc
 
 workflows:
   setup_test:
