@@ -158,9 +158,19 @@ jobs:
       - run:
           name: Build Docs
           command: cargo doc --no-deps --all-features
+      - add_ssh_keys:
+          fingerprints:
+            - "68:80:3e:38:03:0e:2c:96:ef:6d:ef:13:01:af:18:bd"
       - run:
           name: Publish Docs
-          command: scripts/build-rust-docs.sh
+          command: |
+                cd target/doc
+                git init
+                echo '<meta http-equiv="refresh" content="0; url=https://dutterbutter.github.io/forest/forest_vm/index.html">' > index.html
+                git add .
+                git config --global -l
+                git -c user.name='ci' -c user.email='ci' commit -m 'Deploy documentation'
+                git push -f -q https://git:${{ GITHUB_TOKEN }}@github.com/${{ forest }} HEAD:gh-pages
 
 workflows:
   setup_test:
