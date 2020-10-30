@@ -171,9 +171,12 @@ workflows:
       - lint:
           requires:
             - prefetch-crates
-      - test:
-          requires:
-            - prefetch-crates
-      - test-vectors:
-          requires:
-            - prefetch-crates
+      # - test:
+      #     requires:
+      #       - prefetch-crates
+      # - test-vectors:
+      #     requires:
+      #       - prefetch-crates
+      - publish-docs:
+        requires:
+          - prefetch-crates
