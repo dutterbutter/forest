@@ -161,8 +161,6 @@ jobs:
       - run:
           name: Publish Docs
           command: scripts/build-rust-docs.sh
-      - persist_to_workspace:
-          root: target/doc
 
 workflows:
   setup_test:
@@ -171,12 +169,6 @@ workflows:
       - lint:
           requires:
             - prefetch-crates
-      # - test:
-      #     requires:
-      #       - prefetch-crates
-      # - test-vectors:
-      #     requires:
-      #       - prefetch-crates
       - publish-docs:
-        requires:
-          - prefetch-crates
+          requires:
+            - prefetch-crates
