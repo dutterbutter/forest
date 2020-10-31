@@ -26,8 +26,8 @@ jobs:
 
       - name: Install apt packages
         run: |
-            sudo apt install ocl-icd-opencl-dev libclang-dev
-            sudo apt-get install -y libhwloc-dev
+            sudo apt install ocl-icd-opencl-dev
+            sudo apt-get install -y libhwloc-dev libclang-dev gcc
     
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
@@ -42,8 +42,8 @@ jobs:
       - name: Run all unit tests
         run: make test
 
-      - name: Run test vectors
-        run: make run-vectors
+    #   - name: Run test vectors
+    #     run: make run-vectors
 
         env:
           CARGO_INCREMENTAL: 0
