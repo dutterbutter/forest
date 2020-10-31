@@ -96,6 +96,24 @@ commands:
           command: |
             ls -all $HOME/.cargo
             du -ssh $HOME/.cargo
+  install-grcov:
+    steps:
+      - run:
+          name: Install grcov
+          command: |
+            GRCOV_VERSION=v0.5.15
+            GRCOV_ARCHIVE=grcov-linux-x86_64.tar.bz2
+            GRCOV_SHA256=1182739b2b1df31dee74ed3533330001f9da921cf169bd8da4ec0386e4243ad0
+            GRCOV_URL="https://github.com/mozilla/grcov/releases/download/${GRCOV_VERSION}/${GRCOV_ARCHIVE}"
+            curl -sfSL --retry 5 --retry-delay 10 -O "${GRCOV_URL}"
+            echo "${GRCOV_SHA256} *${GRCOV_ARCHIVE}" | shasum -a 256 -c -
+            # Just install `grcov` to ~/.bin
+            mkdir -p "$HOME/.bin"
+            tar jxf "${GRCOV_ARCHIVE}" -C "$HOME/.bin"
+            echo 'export PATH="$HOME/.bin:$PATH"' >> $BASH_ENV
+      # Run in a different shell to source $BASH_ENV
+      - run: |
+          grcov --version
   build_setup:
     description: Sets up environment for future jobs
     steps:
@@ -137,10 +155,7 @@ jobs:
       - restore_cargo_package_cache
       - run:
           name: Run Unit Tests
-          command: |
-                echo $(circleci tests glob "/**/**/tests/*.rs" | circleci tests split --split-by=timings)
-                circleci tests glob "/**/**/tests/*.rs" | circleci tests split --split-by=timings
-                make test
+          command: make test
   test-vectors:
     executor: test-executor
     description: Run serialization and conformance tests
@@ -173,28 +188,22 @@ jobs:
             - "68:80:3e:38:03:0e:2c:96:ef:6d:ef:13:01:af:18:bd"
       - run:
           name: Publish Docs
-          command: bash ./build-rust-docs.sh
-  generate-cov:
-    executor: test-executor
-    description: Coverage
-    environment:
-          # Set your codecov token if your repository is private.
-          CODE_COV_TOKEN: ${CODE_COV_TOKEN}
+          command: bash ./scripts/build-rust-docs.sh
+  cov:
+    docker:
+      - image: circleci/rust:latest
+    resource_class: medium
     steps:
+      # Need to use nightly for this.
       - build_setup
-      - restore_cargo_package_cache
+      - install-grcov
+      - run: bash ./automation/emit_coverage_info.sh
       - run:
-          name: Coverage
-          command: |
-            export PATH=$HOME/.cargo/bin:$PATH
-            # install kcov
-            cargo install cargo-kcov
-            cargo kcov --print-install-kcov-sh | sh
-            echo "Install kcov successfully"
-            # coverage
-            cargo kcov --all -v
-            bash <(curl -s https://codecov.io/bash)
-            echo "Upload code coverage successfully"
+          name: Compile coverage
+          command: grcov ./target/debug/ -s . -t lcov --llvm --ignore-not-existing --ignore "target/*" --ignore "/*" -o lcov.info
+      - run:
+          name: Upload to codecov.io
+          command: bash <(curl -s https://codecov.io/bash) -f lcov.info
 
 workflows:
   setup_test:
@@ -203,12 +212,15 @@ workflows:
       - test:
           requires:
             - prefetch-crates
-      - generate-cov:
-          requires:
-            - prefetch-crates
+  docs:
+    jobs:
+      - prefetch-crates
       - publish-docs:
           requires:
             - prefetch-crates
+  coverage:
+    jobs:
+      - cov
       # - build-nightly:
       #     requires:
       #         - prefetch-crates/**/*.js
