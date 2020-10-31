@@ -178,8 +178,6 @@ jobs:
     executor: test-executor
     description: Publish documentation to GitHub pages
     steps:
-      - build_setup
-      - restore_cargo_package_cache
       - run:
           name: Build Docs
           command: cargo doc --no-deps --all-features
@@ -196,6 +194,12 @@ jobs:
     steps:
       # Need to use nightly for this.
       - build_setup
+      - run:
+          name: Nightly Build
+          command: |
+              rustup run nightly rustc --version --verbose
+              rustup run nightly cargo --version --verbose
+              rustup run nightly cargo build
       - install-grcov
       - run: bash ./automation/emit_coverage_info.sh
       - run:
