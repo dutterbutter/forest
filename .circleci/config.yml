@@ -49,6 +49,9 @@ commands:
             echo 'export CC=gcc' >> $BASH_ENV
             export RUST_NIGHTLY=$(cat cargo-toolchain)
             echo 'export RUST_NIGHTLY='"$RUST_NIGHTLY" >> $BASH_ENV
+            export CARGO_INCREMENTAL=0
+            export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
+            export RUSTDOCFLAGS="-Cpanic=abort"
   install_deps:
     steps:
       - run:
@@ -113,18 +116,6 @@ jobs:
           name: Fetch workspace dependencies over network
           command: cargo fetch
       - save_cargo_package_cache
-  build-nightly:
-    executor: test-executor
-    description: Checks nightly builds 
-    steps:
-      - checkout
-      - restore_cargo_package_cache
-      - run:
-          name: Nightly builds
-          command: |
-                rustup run nightly rustc --version --verbose
-                rustup run nightly cargo --version --verbose
-                rustup run nightly cargo build
   lint:
     executor: test-executor
     description: Run Rust linting tools.
@@ -147,7 +138,7 @@ jobs:
       - run:
           name: Run Unit Tests
           command: |
-                echo $(circleci tests glob "**/*.rs" | circleci tests split --split-by=timings")
+                echo $(circleci tests glob "**/*.rs" | circleci tests split --split-by=timings)
                 circleci tests glob "**/*.rs" | circleci tests split --split-by=timings
                 make test
   test-vectors:
@@ -194,7 +185,10 @@ jobs:
       - restore_cargo_package_cache
       - run:
           name: Upload Coverage
-          command: sh ./scripts/codecov.sh
+          command: |
+              cargo test
+              grcov ./target/debug/ -s . -t html --llvm --branch --ignore-not-existing -o ./target/debug/coverage/
+              sh codecov.sh
 
 workflows:
   setup_test:
@@ -209,6 +203,6 @@ workflows:
       - publish-docs:
           requires:
             - prefetch-crates
-      - build-nightly:
-          requires:
-              - prefetch-crates
+      # - build-nightly:
+      #     requires:
+      #         - prefetch-crates
