@@ -113,6 +113,18 @@ jobs:
           name: Fetch workspace dependencies over network
           command: cargo fetch
       - save_cargo_package_cache
+  build-nightly:
+    executor: test-executor
+    description: Checks nightly builds 
+    steps:
+      - checkout
+      - restore_cargo_package_cache
+      - run:
+          name: Nightly builds
+          command: |
+                rustup run nightly rustc --version --verbose
+                rustup run nightly cargo --version --verbose
+                rustup run nightly cargo build
   lint:
     executor: test-executor
     description: Run Rust linting tools.
@@ -128,12 +140,16 @@ jobs:
   test:
     executor: test-executor
     description: Run Rust tests
+    parallelism: 4
     steps:
       - build_setup
       - restore_cargo_package_cache
       - run:
           name: Run Unit Tests
-          command: make test
+          command: |
+                echo $(circleci tests glob "**/*.rs" | circleci tests split --split-by=timings")
+                circleci tests glob "**/*.rs" | circleci tests split --split-by=timings
+                make test
   test-vectors:
     executor: test-executor
     description: Run serialization and conformance tests
@@ -166,15 +182,7 @@ jobs:
             - "68:80:3e:38:03:0e:2c:96:ef:6d:ef:13:01:af:18:bd"
       - run:
           name: Publish Docs
-          command: |
-                cd target/doc
-                git init
-                echo '<meta http-equiv="refresh" content="0; url=https://dutterbutter.github.io/forest/forest_vm/index.html">' > index.html
-                git add .
-                git config --global -l
-                git -c user.name='ci' -c user.email='ci' commit -m 'Deploy documentation'
-                echo "${GITHUB_TOKEN}"
-                git push -f -q https://git:${GITHUB_TOKEN}@github.com/dutterbutter/dutterbutter.github.io
+          command: sh build-rust-docs.sh
   generate-cov:
     executor: test-executor
     description: Coverage
@@ -201,3 +209,6 @@ workflows:
       - publish-docs:
           requires:
             - prefetch-crates
+      - build-nightly:
+          requires:
+              - prefetch-crates
