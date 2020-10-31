@@ -124,6 +124,22 @@ commands:
       - env_setup
       - install_deps
 jobs:
+  cov:
+    machine: true
+    steps:
+      - checkout
+      - run:
+          name: Pull xd009642/tarpaulin
+          command: docker pull xd009642/tarpaulin:latest
+      - run:
+          name: Generate report
+          command: >
+            docker run --security-opt seccomp=unconfined -e CODECOV_TOKEN=${CODECOV_TOKEN}
+            -v $PWD:/volume xd009642/tarpaulin cargo tarpaulin -v --ciserver circle-ci
+            --out Xml --all-features
+      - run:
+          name: Upload
+          command: bash <(curl -s https://codecov.io/bash) -Z -f cobertura.xml
   prefetch-crates:
     executor: test-executor
     description: Prefetch cargo crates for subsequent jobs.
@@ -149,7 +165,6 @@ jobs:
   test:
     executor: test-executor
     description: Run Rust tests
-    parallelism: 4
     steps:
       - build_setup
       - restore_cargo_package_cache
@@ -178,6 +193,8 @@ jobs:
     executor: test-executor
     description: Publish documentation to GitHub pages
     steps:
+      - build_setup
+      - restore_cargo_package_cache
       - run:
           name: Build Docs
           command: cargo doc --no-deps --all-features
@@ -187,27 +204,6 @@ jobs:
       - run:
           name: Publish Docs
           command: bash ./scripts/build-rust-docs.sh
-  cov:
-    docker:
-      - image: circleci/rust:latest
-    resource_class: medium
-    steps:
-      # Need to use nightly for this.
-      - build_setup
-      - run:
-          name: Nightly Build
-          command: |
-              rustup run nightly rustc --version --verbose
-              rustup run nightly cargo --version --verbose
-              rustup run nightly cargo build
-      - install-grcov
-      - run: bash ./automation/emit_coverage_info.sh
-      - run:
-          name: Compile coverage
-          command: grcov ./target/debug/ -s . -t lcov --llvm --ignore-not-existing --ignore "target/*" --ignore "/*" -o lcov.info
-      - run:
-          name: Upload to codecov.io
-          command: bash <(curl -s https://codecov.io/bash) -f lcov.info
 
 workflows:
   setup_test:
