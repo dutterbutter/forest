@@ -6,7 +6,7 @@ on:
       - master
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
   cov:
@@ -27,11 +27,6 @@ jobs:
           RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
       - id: coverage
       - uses: actions-rs/grcov@v0.1
-      - name: Coveralls upload
-          uses: coverallsapp/github-action@master
-          with:
-            github-token: ${{ secrets.GITHUB_TOKEN }}
-            path-to-lcov: ${{ steps.coverage.outputs.report }}
   test:
     name: test
     runs-on: ubuntu-latest
