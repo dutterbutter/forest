@@ -26,7 +26,7 @@ jobs:
 
       - name: Install apt packages
         run: |
-            sudo apt install ocl-icd-opencl-dev
+            sudo apt install ocl-icd-opencl-dev libclang-dev
             sudo apt-get install -y libhwloc-dev
     
       - name: Install toolchain
@@ -44,7 +44,7 @@ jobs:
 
       - name: Run test vectors
         run: make run-vectors
-        
+
         env:
           CARGO_INCREMENTAL: 0
           RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests"
