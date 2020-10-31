@@ -163,7 +163,7 @@ jobs:
     executor: test-executor
     description: Publish documentation to GitHub pages
     steps:
-      - checkout
+      - build_setup
       - restore_cargo_package_cache
       - run:
           name: Build Docs
@@ -181,7 +181,7 @@ jobs:
           # Set your codecov token if your repository is private.
           CODE_COV_TOKEN: ${CODE_COV_TOKEN}
     steps:
-      - checkout
+      - build_setup
       - restore_cargo_package_cache
       - run:
           name: Coverage
