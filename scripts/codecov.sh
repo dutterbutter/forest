@@ -10,5 +10,5 @@ done
 
 wget -O - -q "https://codecov.io/bash" > .codecov
 chmod +x .codecov
-./.codecov -t $CODECOV_TOKEN
+./.codecov -t $CODE_COV_TOKEN
 echo "Uploaded code coverage"

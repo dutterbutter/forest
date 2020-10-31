@@ -4,7 +4,8 @@ executors:
   test-executor:
     machine:
       image: ubuntu-1604:202004-01
-    resource_class: large
+    resource_class: xlarge
+  
 
 commands:
   install_rust:
@@ -46,6 +47,8 @@ commands:
             echo 'export CARGO_INCREMENTAL=0' >> $BASH_ENV
             echo 'export CI_TIMEOUT="timeout 40m"' >> $BASH_ENV
             echo 'export CC=gcc' >> $BASH_ENV
+            export RUST_NIGHTLY=$(cat cargo-toolchain)
+            echo 'export RUST_NIGHTLY='"$RUST_NIGHTLY" >> $BASH_ENV
   install_deps:
     steps:
       - run:
@@ -172,14 +175,29 @@ jobs:
                 git -c user.name='ci' -c user.email='ci' commit -m 'Deploy documentation'
                 echo "${GITHUB_TOKEN}"
                 git push -f -q https://git:${GITHUB_TOKEN}@github.com/dutterbutter/forest HEAD:gh-pages
+  generate-cov:
+    executor: test-executor
+    description: Coverage
+    environment:
+          # Set your codecov token if your repository is private.
+          CODE_COV_TOKEN: ${CODE_COV_TOKEN}
+    steps:
+      - build_setup
+      - restore_cargo_package_cache
+      - run:
+          name: Upload Coverage
+          command: sh ./scripts/codecov.sh
 
 workflows:
   setup_test:
     jobs:
       - prefetch-crates
-      - lint:
+      - test:
           requires:
             - prefetch-crates
+      - generate-cov:
+          requires:
+            - test
       - publish-docs:
           requires:
             - prefetch-crates
