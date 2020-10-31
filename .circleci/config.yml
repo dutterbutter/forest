@@ -138,8 +138,8 @@ jobs:
       - run:
           name: Run Unit Tests
           command: |
-                echo $(circleci tests glob "**/*.rs" | circleci tests split --split-by=timings)
-                circleci tests glob "**/*.rs" | circleci tests split --split-by=timings
+                echo $(circleci tests glob "/**/**/tests/*.rs" | circleci tests split --split-by=timings)
+                circleci tests glob "/**/**/tests/*.rs" | circleci tests split --split-by=timings
                 make test
   test-vectors:
     executor: test-executor
@@ -163,7 +163,7 @@ jobs:
     executor: test-executor
     description: Publish documentation to GitHub pages
     steps:
-      - build_setup
+      - checkout
       - restore_cargo_package_cache
       - run:
           name: Build Docs
@@ -173,7 +173,7 @@ jobs:
             - "68:80:3e:38:03:0e:2c:96:ef:6d:ef:13:01:af:18:bd"
       - run:
           name: Publish Docs
-          command: sh build-rust-docs.sh
+          command: bash ./build-rust-docs.sh
   generate-cov:
     executor: test-executor
     description: Coverage
@@ -181,14 +181,20 @@ jobs:
           # Set your codecov token if your repository is private.
           CODE_COV_TOKEN: ${CODE_COV_TOKEN}
     steps:
-      - build_setup
+      - checkout
       - restore_cargo_package_cache
       - run:
-          name: Upload Coverage
+          name: Coverage
           command: |
-              cargo test
-              grcov ./target/debug/ -s . -t html --llvm --branch --ignore-not-existing -o ./target/debug/coverage/
-              sh codecov.sh
+            export PATH=~/.cargo/bin:$PATH
+            # install kcov
+            cargo install cargo-kcov
+            cargo kcov --print-install-kcov-sh | sh
+            echo "Install kcov successfully"
+            # coverage
+            cargo kcov --all -v
+            bash <(curl -s https://codecov.io/bash)
+            echo "Upload code coverage successfully"
 
 workflows:
   setup_test:
@@ -197,12 +203,10 @@ workflows:
       - test:
           requires:
             - prefetch-crates
-      - generate-cov:
-          requires:
-            - test
+      - generate-cov
       - publish-docs:
           requires:
             - prefetch-crates
       # - build-nightly:
       #     requires:
-      #         - prefetch-crates
+      #         - prefetch-crates/**/*.js
