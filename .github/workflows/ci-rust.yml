@@ -9,6 +9,19 @@ on:
       - master
 
 jobs:
+  cov:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Push to coveralls.io
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+        run: |
+          cargo install cargo-tarpaulin
+          cargo tarpaulin --ciserver github-ci --coveralls $COVERALLS_TOKEN
   test:
     name: test
     runs-on: ubuntu-latest
