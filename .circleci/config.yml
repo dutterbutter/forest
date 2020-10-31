@@ -203,7 +203,9 @@ workflows:
       - test:
           requires:
             - prefetch-crates
-      - generate-cov
+      - generate-cov:
+          requires:
+            - prefetch-crates
       - publish-docs:
           requires:
             - prefetch-crates
