@@ -15,11 +15,11 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v2
     - name: Update apt repositories
-    run: sudo apt update
+      run: sudo apt update
     - name: Install apt packages
-    run: |
-        sudo apt install -y ocl-icd-opencl-dev make clang pkg-config libssl-dev
-        sudo apt-get install -y libhwloc-dev llvm 
+      run: |
+          sudo apt install -y ocl-icd-opencl-dev make clang pkg-config libssl-dev
+          sudo apt-get install -y libhwloc-dev llvm 
     - name: Install rust
       uses: actions-rs/toolchain@v1
       with:
