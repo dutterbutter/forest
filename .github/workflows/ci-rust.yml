@@ -22,7 +22,7 @@ jobs:
         run: apt update
       - name: Install apt packages
         run: |
-            apt install ocl-icd-opencl-dev
+            apt install -y ocl-icd-opencl-dev
             apt-get install -y libhwloc-dev
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
