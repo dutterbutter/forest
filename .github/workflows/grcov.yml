@@ -10,76 +10,34 @@ on:
 name: Code coverage with grcov
 
 jobs:
-  grcov:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-        #   - macOS-latest
-
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Update apt repositories
-        run: sudo apt update
-
-      - name: Install apt packages
-        run: |
-            sudo apt install ocl-icd-opencl-dev make clang pkg-config libssl-dev libclang-dev
-            sudo apt-get install -y libhwloc-dev libcurl4-openssl-dev libelf-dev libdw-dev cmake gcc \
-            make clang pkg-config libssl-dev libclang-dev
-
-      - name: Install toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          profile: minimal
-
-      - name: Pull submodules
-        run: git submodule update --init
-
-      - name: Run all unit tests
-        run: make test
-
-    #   - name: Run test vectors
-    #     run: make run-vectors
-
-        env:
-          CARGO_INCREMENTAL: 0
-          RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests"
-
-      # Note that `actions-rs/grcov` Action can install `grcov` too,
-      # but can't use faster installation methods yet.
-      # As a temporary experiment `actions-rs/install` Action plugged in here.
-      # Consider **NOT** to copy that into your workflow,
-      # but use `actions-rs/grcov` only
-      - name: Pre-installing grcov
-        uses: actions-rs/install@v0.1
-        with:
-          crate: grcov
-          use-tool-cache: true
-
-      - name: Gather coverage data
-        id: coverage
-        uses: actions-rs/grcov@v0.1
-        with:
-          coveralls-token: ${{ secrets.COVERALLS_TOKEN }}
-
-      - name: Coveralls upload
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{ secrets.GIT_TOKEN }}
-          parallel: true
-          path-to-lcov: ${{ steps.coverage.outputs.report }}
-
-  grcov_finalize:
-    runs-on: ubuntu-latest
-    needs: grcov
-    steps:
-      - name: Coveralls finalization
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{ secrets.GIT_TOKEN }}
-          parallel-finished: true
+    lint:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Checkout repo
+            uses: actions/checkout@v2
+          - name: Update apt repositories
+            run: apt update -y
+        - name: Install apt packages
+            run: |
+                apt install -y ocl-icd-opencl-dev
+                apt-get install -y libhwloc-dev
+        - name: Install latest nightly
+          uses: actions-rs/toolchain@v1
+          with:
+            toolchain: nightly
+            override: true
+            components: rustfmt, clippy
+          - uses: actions-rs/cargo@v1
+            with:
+              command: test
+              args: --all-features --no-fail-fast
+            env:
+              CARGO_INCREMENTAL: '0'
+              RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+              RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+          - uses: actions-rs/grcov@v0.1
+          - name: Coveralls upload
+            uses: coverallsapp/github-action@master
+            with:
+                github-token: ${{ secrets.GITHUB_TOKEN }}
+                path-to-lcov: ${{ steps.coverage.outputs.report }}

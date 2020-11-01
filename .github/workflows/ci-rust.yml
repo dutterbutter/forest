@@ -37,8 +37,39 @@ jobs:
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v1
         with:
-          # token:                ${{secrets.CODECOV_TOKEN}} # not required for public repos
-          fail_ci_if_error:     true
+          fail_ci_if_error: true
+  coverme:
+    name: COV-2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+      - name: Update apt repositories
+        run: apt update -y
+      - name: Install apt packages
+        run: |
+            apt install -y ocl-icd-opencl-dev
+            apt-get install -y libhwloc-dev
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          components: rustfmt, clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --verbose --all-features --no-fail-fast
+        env:
+          CARGO_INCREMENTAL: '0'
+          RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+          RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+      - uses: actions-rs/grcov@v0.1
+      - name: Coveralls upload
+        uses: coverallsapp/github-action@master
+        with:
+            github-token: ${{ secrets.GITHUB_TOKEN }}
+            path-to-lcov: ${{ steps.coverage.outputs.report }}
   test:
     name: test
     runs-on: ubuntu-latest
