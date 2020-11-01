@@ -49,7 +49,7 @@ jobs:
       - name: Install apt packages
         run: |
             sudo apt install -y ocl-icd-opencl-dev 
-            sudo apt-get install -y libhwloc-dev libclang-dev gcc
+            sudo apt-get install -y libhwloc-dev clang llvm libclang-dev
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
