@@ -30,17 +30,17 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: run
-        args: --bin cargo-make --target-dir target/ci -- make ci-flow  --all-features
+        args: --bin cargo-make --target-dir target/ci -- make ci-flow
     - name: Run CI (Allow Failures)
       if: matrix.rust == 'nightly'
       continue-on-error: true
       uses: actions-rs/cargo@v1
       with:
         command: run
-        args: --bin cargo-make --target-dir target/ci -- make ci-flow  --all-features
+        args: --bin cargo-make --target-dir target/ci -- make ci-flow
     - name: Run CI (Minimal Supported Rust Version)
       if: matrix.rust != 'stable' && matrix.rust != 'beta' && matrix.rust != 'nightly'
       uses: actions-rs/cargo@v1
       with:
         command: make
-        args: ci-flow --all-features
+        args: ci-flow
