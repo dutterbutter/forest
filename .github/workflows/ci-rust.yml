@@ -51,10 +51,10 @@ jobs:
             sudo apt install -y ocl-icd-opencl-dev make g++-5 clang-7 libgoogle-perftools-dev pkg-config libssl-dev
             sudo apt-get install -y libhwloc-dev llvm-toolchain-trusty-7 
         env:
-          - GCC_CXX=g++-5
-          - GCOV=gcov-5
-          - CLANG_CXX=clang++-7
-          - DEPLOY=0
+          GCC_CXX=g++-5
+          GCOV=gcov-5
+          CLANG_CXX=clang++-7
+          DEPLOY=0
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
