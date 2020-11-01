@@ -55,16 +55,18 @@ jobs:
         with:
           toolchain: nightly
           override: true
-          components: rustfmt, clippy     
-      - name: Execute tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --verbose --all-features --no-fail-fast
+          components: rustfmt, clippy
+
+      - name: Pull submodules
+        run: git submodule update --init
+
+      - name: Run all unit tests
+        run: make test
         env:
           CARGO_INCREMENTAL: '0'
           RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
           RUSTDOCFLAGS: '-Cpanic=abort'
+          
       - uses: actions-rs/grcov@v0.1
       - name: Coveralls upload
         uses: coverallsapp/github-action@master
