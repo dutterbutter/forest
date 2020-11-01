@@ -21,7 +21,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: |
           cargo install cargo-tarpaulin
-          cargo tarpaulin --out Xml
+          cargo tarpaulin make test-vectors --out Xml
           bash <(curl -s https://codecov.io/bash) -X gcov -t $CODECOV_TOKEN
   test:
     name: test

@@ -27,8 +27,8 @@ jobs:
       - name: Install apt packages
         run: |
             sudo apt install ocl-icd-opencl-dev make clang pkg-config libssl-dev libclang-dev
-            sudo apt-get install -y libhwloc-dev
-    
+            sudo apt-get install -y libhwloc-dev libcurl4-openssl-dev libelf-dev libdw-dev cmake gcc
+
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
