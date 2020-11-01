@@ -9,7 +9,7 @@ on:
       - master
 
 jobs:
-  test:
+  cov:
     name: coverage
     runs-on: ubuntu-latest
     container:
