@@ -48,7 +48,7 @@ jobs:
         run: sudo apt update
       - name: Install apt packages
         run: |
-            sudo apt install -y ocl-icd-opencl-dev make g++-5 clang-7 libgoogle-perftools-dev pkg-config libssl-dev
+            sudo apt install -y ocl-icd-opencl-dev make clang pkg-config libssl-dev
             sudo apt-get install -y libhwloc-dev llvm 
         env:
           GCC_CXX: 'g++-5'
