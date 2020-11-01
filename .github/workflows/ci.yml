@@ -14,6 +14,8 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
+    - name: Install cargo-make
+      uses: davidB/rust-cargo-make@v1
     - name: Update apt repositories
       run: sudo apt update
     - name: Install apt packages
@@ -26,8 +28,6 @@ jobs:
         toolchain: ${{ matrix.rust }}
         profile: minimal
         override: true
-    - name: Install cargo-make
-      uses: davidB/rust-cargo-make@v1
     - name: Run CI
       if: matrix.rust == 'stable' || matrix.rust == 'beta'
       uses: actions-rs/cargo@v1
