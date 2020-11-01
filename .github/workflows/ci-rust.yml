@@ -38,13 +38,13 @@ jobs:
       - name: Pull submodules
         run: git submodule update --init
       - name: Setup code coverage output
-      - run: |
+        run: |
             echo "export CODECOV_OUTPUT=codecov" >> $BASH_ENV
       - name: Run Code Coverage
-      - run: |
+        run: |
             cargo test --all-features --html-cov-dir=$CODECOV_OUTPUT/grcovhtml/ --html-lcov-dir=$CODECOV_OUTPUT/lcovhtml/ --no-fail-fast -j 10 || true
       - name: Upload result to codecov.io
-      - run: |
+        run: |
             bash <(curl -s https://codecov.io/bash) -f $CODECOV_OUTPUT/lcovhtml/lcov.info -F unittest;
   test:
     name: test
