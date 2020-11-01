@@ -32,7 +32,7 @@ jobs:
             components: rustfmt, clippy
       - name: Generate code coverage
         run: |
-          cargo +nightly tarpaulin --verbose --all-features --workspace --timeout 120 --out Xml
+          cargo +nightly tarpaulin --verbose --all-features --workspace --exclude tests/* --timeout 120 --out Xml
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v1
@@ -55,12 +55,7 @@ jobs:
         with:
           toolchain: nightly
           override: true
-          components: rustfmt, clippy
-      - name: Install LLVM and Clang
-        uses: KyleMayes/install-llvm-action@v1
-        with:
-          version: "10.0"
-          directory: ${{ runner.temp }}/llvm      
+          components: rustfmt, clippy     
       - name: Execute tests
         uses: actions-rs/cargo@v1
         with:
