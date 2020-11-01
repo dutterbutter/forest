@@ -9,43 +9,25 @@ on:
       - master
 
 jobs:
-  cov:
-    name: Code Coverage
+  test:
+    name: coverage
     runs-on: ubuntu-latest
+    container:
+      image: xd009642/tarpaulin
+      options: --security-opt seccomp=unconfined
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-      - name: Update apt repositories
-        run: sudo apt update
-
-      - name: Install apt packages
+      - name: Generate code coverage
         run: |
-            sudo apt install ocl-icd-opencl-dev
-            sudo apt-get install -y libhwloc-dev
+          cargo +nightly tarpaulin --verbose --all-features --workspace --timeout 120 --out Xml
 
-      # TODO enable when protoc needed again
-      # - name: Install Protoc
-      #   uses: arduino/setup-protoc@master
-      #   with:
-      #     version: "3.9.1"
-
-      - name: Toolchain setup
-        uses: actions-rs/toolchain@v1
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v1
         with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - name: Pull submodules
-        run: git submodule update --init
-      - name: Setup code coverage output
-        run: |
-            echo "export CODECOV_OUTPUT=codecov" >> $BASH_ENV
-      - name: Run Code Coverage
-        run: |
-            cargo test --all-features --html-cov-dir=$CODECOV_OUTPUT/grcovhtml/ --html-lcov-dir=$CODECOV_OUTPUT/lcovhtml/ --no-fail-fast -j 10 || true
-      - name: Upload result to codecov.io
-        run: |
-            bash <(curl -s https://codecov.io/bash) -f $CODECOV_OUTPUT/lcovhtml/lcov.info -F unittest;
+          # token:                ${{secrets.CODECOV_TOKEN}} # not required for public repos
+          fail_ci_if_error:     true
   test:
     name: test
     runs-on: ubuntu-latest
