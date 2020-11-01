@@ -19,7 +19,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
       - name: Update apt repositories
-        run: sudo apt update
+        run: apt update && apt install sudo
       - name: Install apt packages
         run: |
             sudo apt install ocl-icd-opencl-dev
