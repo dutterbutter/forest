@@ -135,7 +135,7 @@ jobs:
       - run:
           name: Run code coverage
           command: |
-            cargo xtest --html-cov-dir=$CODECOV_OUTPUT/grcovhtml/ --html-lcov-dir=$CODECOV_OUTPUT/lcovhtml/ --no-fail-fast -j 10 || true
+            cargo test --all-features --html-cov-dir=$CODECOV_OUTPUT/grcovhtml/ --html-lcov-dir=$CODECOV_OUTPUT/lcovhtml/ --no-fail-fast -j 10 || true
           no_output_timeout: 20m
       - run:
           name: Upload result to codecov.io
