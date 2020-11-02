@@ -123,15 +123,15 @@ jobs:
   #         name: Upload
   #         command: bash <(curl -s https://codecov.io/bash) -Z -f cobertura.xml
   coverage:
-    machine: true
+    executor: test-executor
     description: Run code coverage
     steps:
       - build_setup
       - restore_cargo_package_cache
       - run:
-        name: Setup code coverage output
-        command: |
-          echo "export CODECOV_OUTPUT=codecov" >> $BASH_ENV
+          name: Setup code coverage output
+          command: |
+            echo "export CODECOV_OUTPUT=codecov" >> $BASH_ENV
       - run:
           name: Run code coverage
           command: |
