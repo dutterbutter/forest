@@ -180,9 +180,9 @@ jobs:
       - run:
           name: Build Docs
           command: cargo doc --no-deps --all-features
-      # - add_ssh_keys:
-      #     fingerprints:
-      #       - "68:80:3e:38:03:0e:2c:96:ef:6d:ef:13:01:af:18:bd"
+      - add_ssh_keys:
+          fingerprints:
+            - "68:80:3e:38:03:0e:2c:96:ef:6d:ef:13:01:af:18:bd"
       - run:
           name: Publish Docs
           command: bash ./scripts/build-rust-docs.sh
