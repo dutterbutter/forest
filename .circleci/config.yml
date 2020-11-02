@@ -106,22 +106,41 @@ commands:
       - env_setup
       - install_deps
 jobs:
-  cov:
+  # cov:
+  #   machine: true
+  #   steps:
+  #     - checkout
+  #     - run:
+  #         name: Pull xd009642/tarpaulin
+  #         command: docker pull xd009642/tarpaulin:latest
+  #     - run:
+  #         name: Generate report
+  #         command: >
+  #           docker run --security-opt seccomp=unconfined -e CODECOV_TOKEN=${CODECOV_TOKEN}
+  #           -v $PWD:/volume xd009642/tarpaulin cargo tarpaulin -v --ciserver circle-ci
+  #           --out Xml --all-features
+  #     - run:
+  #         name: Upload
+  #         command: bash <(curl -s https://codecov.io/bash) -Z -f cobertura.xml
+  coverage:
     machine: true
+    description: Run code coverage
     steps:
-      - checkout
+      - build_setup
+      - restore_cargo_package_cache
       - run:
-          name: Pull xd009642/tarpaulin
-          command: docker pull xd009642/tarpaulin:latest
+        name: Setup code coverage output
+        command: |
+          echo "export CODECOV_OUTPUT=codecov" >> $BASH_ENV
       - run:
-          name: Generate report
-          command: >
-            docker run --security-opt seccomp=unconfined -e CODECOV_TOKEN=${CODECOV_TOKEN}
-            -v $PWD:/volume xd009642/tarpaulin cargo tarpaulin -v --ciserver circle-ci
-            --out Xml --all-features
+          name: Run code coverage
+          command: |
+            cargo xtest --html-cov-dir=$CODECOV_OUTPUT/grcovhtml/ --html-lcov-dir=$CODECOV_OUTPUT/lcovhtml/ --no-fail-fast -j 10 || true
+          no_output_timeout: 20m
       - run:
-          name: Upload
-          command: bash <(curl -s https://codecov.io/bash) -Z -f cobertura.xml
+          name: Upload result to codecov.io
+          command: bash <(curl -s https://codecov.io/bash) -f $CODECOV_OUTPUT/lcovhtml/lcov.info -F unittest;
+      
   prefetch-crates:
     executor: test-executor
     description: Prefetch cargo crates for subsequent jobs.
@@ -202,7 +221,7 @@ workflows:
             - prefetch-crates
   coverage:
     jobs:
-      - cov
+      - coverage
       # - build-nightly:
       #     requires:
       #         - prefetch-crates/**/*.js
