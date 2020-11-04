@@ -152,31 +152,31 @@ jobs:
           name: Build tests with coverage
           command: CARGO_INCREMENTAL=0 RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY t --no-run --all-features
       - run:
-        name: Run tests
-        command: |
-          # TODO: Store test results in json `--format json`
-          # TODO: Fix coverage on zkp-macros-lib
-          # TODO: Enable --nocapture
-          CARGO_INCREMENTAL=0 RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY t --workspace --exclude zkp-macros-lib
-          cargo +$NIGHTLY t --package zkp-macros-lib
-    - run:
-        name: Combine coverage
-        command: |
-          zip -0 target/ccov.zip `find . \( -name "*.gc*" \) -print`
-          grcov target/ccov.zip $GRCOVFLAGS -t lcov -o target/lcov.info
-    - run:
-        name: Submit to codecov
-        command: |
-          bash <(curl -s https://codecov.io/bash)
-  test-vectors:
-    executor: test-executor
-    description: Run serialization and conformance tests
-    steps:
-      - build_setup
-      - restore_cargo_package_cache
+          name: Run tests
+          command: |
+            # TODO: Store test results in json `--format json`
+            # TODO: Fix coverage on zkp-macros-lib
+            # TODO: Enable --nocapture
+            CARGO_INCREMENTAL=0 RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY t --workspace --exclude zkp-macros-lib
+            cargo +$NIGHTLY t --package zkp-macros-lib
       - run:
-          name: Run test vectors
-          command: make run-vectors
+          name: Combine coverage
+          command: |
+            zip -0 target/ccov.zip `find . \( -name "*.gc*" \) -print`
+            grcov target/ccov.zip $GRCOVFLAGS -t lcov -o target/lcov.info
+      - run:
+          name: Submit to codecov
+          command: |
+            bash <(curl -s https://codecov.io/bash)
+  # test-vectors:
+  #   executor: test-executor
+  #   description: Run serialization and conformance tests
+  #   steps:
+  #     - build_setup
+  #     - restore_cargo_package_cache
+  #     - run:
+  #         name: Run test vectors
+  #         command: make run-vectors
   prefetch-crates:
     executor: test-executor
     description: Prefetch cargo crates for subsequent jobs.
