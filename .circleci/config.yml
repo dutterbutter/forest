@@ -47,11 +47,6 @@ commands:
             echo 'export CARGO_INCREMENTAL=0' >> $BASH_ENV
             echo 'export CI_TIMEOUT="timeout 40m"' >> $BASH_ENV
             echo 'export CC=gcc' >> $BASH_ENV
-            export RUST_NIGHTLY=$(cat cargo-toolchain)
-            echo 'export RUST_NIGHTLY='"$RUST_NIGHTLY" >> $BASH_ENV
-            export CARGO_INCREMENTAL=0
-            export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
-            export RUSTDOCFLAGS="-Cpanic=abort"
   install_deps:
     steps:
       - run:
@@ -157,8 +152,8 @@ jobs:
             # TODO: Store test results in json `--format json`
             # TODO: Fix coverage on zkp-macros-lib
             # TODO: Enable --nocapture
-            CARGO_INCREMENTAL=0 RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY t --workspace --exclude zkp-macros-lib
-            cargo +$NIGHTLY t --package zkp-macros-lib
+            CARGO_INCREMENTAL=0 RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY t --workspace
+            cargo +$NIGHTLY t --package
       - run:
           name: Combine coverage
           command: |
