@@ -16,7 +16,7 @@ commands:
           command: |
             curl -O https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init && \
             chmod +x rustup-init && \
-            ./rustup-init -y --no-modify-path --default-toolchain nightly && \
+            ./rustup-init -y --no-modify-path --default-toolchain stable && \
             rm rustup-init && \
             echo 'export PATH=$HOME/.cargo/bin:$PATH' >> $BASH_ENV && \
             source $BASH_ENV
@@ -28,8 +28,8 @@ commands:
       - run:
           name: Set rustc version
           command: |
-            rustup default nightly
-            rustup update nightly
+            rustup default stable
+            rustup update stable
   print_versions:
     description: Version Info
     steps:
@@ -153,7 +153,7 @@ jobs:
             # TODO: Fix coverage on zkp-macros-lib
             # TODO: Enable --nocapture
             CARGO_INCREMENTAL=0 RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY t --workspace
-            cargo +$NIGHTLY t --package
+            rustup run nightly cargo +$NIGHTLY t --package
       - run:
           name: Combine coverage
           command: |
