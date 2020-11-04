@@ -16,7 +16,7 @@ commands:
           command: |
             curl -O https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init && \
             chmod +x rustup-init && \
-            ./rustup-init -y --no-modify-path --default-toolchain stable && \
+            ./rustup-init -y --no-modify-path --default-toolchain nightly && \
             rm rustup-init && \
             echo 'export PATH=$HOME/.cargo/bin:$PATH' >> $BASH_ENV && \
             source $BASH_ENV
@@ -28,8 +28,8 @@ commands:
       - run:
           name: Set rustc version
           command: |
-            rustup default stable
-            rustup update stable
+            rustup default nightly
+            rustup update nightly
   print_versions:
     description: Version Info
     steps:
@@ -230,9 +230,9 @@ jobs:
       - run:
           name: Build Docs
           command: cargo doc --no-deps --all-features
-      - add_ssh_keys:
-          fingerprints:
-            - "68:80:3e:38:03:0e:2c:96:ef:6d:ef:13:01:af:18:bd"
+      # - add_ssh_keys:
+      #     fingerprints:
+      #       - "68:80:3e:38:03:0e:2c:96:ef:6d:ef:13:01:af:18:bd"
       - run:
           name: Publish Docs
           command: bash ./scripts/build-rust-docs.sh
