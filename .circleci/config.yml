@@ -231,6 +231,12 @@ workflows:
       - test-vectors:
           requires:
             - prefetch-crates
+  build-check:
+    jobs:
+      - prefetch-crates
+      - nightly-build-check:
+          requires:
+            - prefetch-crates
   docs:
     jobs:
       - publish-docs
