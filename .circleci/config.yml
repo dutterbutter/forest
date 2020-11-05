@@ -111,13 +111,13 @@ jobs:
           command: cargo fetch
       - save_cargo_package_cache
   nightly-build-check:
-    docker:
-      - image: rust:latest
+    executor: test-executor
     description: Check nightly build
     steps:
       - checkout
       - install_rust
       - install_deps
+      - env_setup
       - run:
           name: Set rustc version
           command: |
@@ -192,7 +192,7 @@ jobs:
             rustup update nightly
       - run:
           name: Build tests with coverage
-          command: CARGO_INCREMENTAL=0 RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY t --no-run --all-features
+          command: RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY --verbose t --no-run --all-features
       - run:
           name: Run tests
           command: |
