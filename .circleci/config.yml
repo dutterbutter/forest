@@ -111,10 +111,11 @@ jobs:
           command: cargo fetch
       - save_cargo_package_cache
   nightly-build-check:
-    executor: test-executor
+    docker:
+      - image: rust:latest
     description: Check nightly build
     steps:
-      - build_setup
+      - checkout
       - restore_cargo_package_cache
       - run:
           name: Nightly Build
@@ -169,13 +170,13 @@ jobs:
   #         name: Upload
   #         command: bash <(curl -s https://codecov.io/bash) -Z -f cobertura.xml
   coverage:
-    executor: test-executor
+    docker:
+      - image: rust:latest
     description: Run Rust tests
     environment:
       GRCOVFLAGS: -s . --llvm --branch --ignore-not-existing --ignore "/*"
     steps:
-      - build_setup
-      - restore_cargo_package_cache
+      - checkout
       - run:
           name: Build tests with coverage
           command: CARGO_INCREMENTAL=0 RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY t --no-run --all-features
