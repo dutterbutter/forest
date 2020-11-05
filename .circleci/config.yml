@@ -59,7 +59,8 @@ commands:
                 curl file gcc g++ git make openssh-client \
                 autoconf automake cmake libtool libcurl4-openssl-dev libssl-dev llvm\
                 libelf-dev libdw-dev binutils-dev zlib1g-dev libiberty-dev wget \
-                xz-utils pkg-config python clang++-6 ocl-icd-opencl-dev libgflags-dev libhwloc-dev
+                xz-utils pkg-config python libclang-6.0-dev clang++-6 ocl-icd-opencl-dev libgflags-dev libhwloc-dev
+            sudo ln -s /usr/bin/clang-6.0 /usr/bin/clang
             rustup component add clippy rustfmt
             git submodule update --init
 
