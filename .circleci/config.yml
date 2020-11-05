@@ -6,6 +6,9 @@ executors:
       image: ubuntu-1604:202004-01
     resource_class: xlarge
 
+######################################################################################################################
+  #  Reusable single command definitions
+######################################################################################################################
 commands:
   install_rust:
     description: Install Rust Toolchain
@@ -99,6 +102,7 @@ commands:
       - print_versions
       - env_setup
       - install_deps
+
 jobs:
   prefetch-crates:
     executor: test-executor
@@ -110,6 +114,10 @@ jobs:
           name: Fetch workspace dependencies over network
           command: cargo fetch
       - save_cargo_package_cache
+
+######################################################################################################################
+  #  Build related jobs
+######################################################################################################################
   nightly-build-check:
     executor: test-executor
     description: Check nightly build
@@ -131,7 +139,7 @@ jobs:
             rustup run nightly cargo build
   macos-build-check:
     macos:
-      xcode: 11.3.0
+      xcode: 12.0.1
     description: Check macos build
     steps:
       - checkout
@@ -156,6 +164,19 @@ jobs:
             rustup run stable rustc --version --verbose
             rustup run stable cargo --version --verbose
             rustup run stable cargo build
+  install:
+    executor: test-executor
+    description: Install forest binary
+    steps:
+      - build_setup
+      - restore_cargo_package_cache
+      - run:
+          name: Install binary
+          command: make install
+
+######################################################################################################################
+  #  Testing, linting, code coverage and doc publishing
+######################################################################################################################
   lint:
     executor: test-executor
     description: Run Rust linting tools.
@@ -215,17 +236,11 @@ jobs:
       - run:
           name: Run code coverage
           command: |
-            cargo run --package x --bin x -- test --html-cov-dir=$CODECOV_OUTPUT/grcovhtml/ --html-lcov-dir=$CODECOV_OUTPUT/lcovhtml/ --no-fail-fast -j 10 || true
+            grcov . -o lcov.info -t bash <(curl -s https://codecov.io/bash)
           no_output_timeout: 20m
-  install:
-    executor: test-executor
-    description: Install forest binary
-    steps:
-      - build_setup
-      - restore_cargo_package_cache
-      - run:
-          name: Install binary
-          command: make install
+      # - run:
+      #     name: Upload result to codecov.io
+      #     command: bash <(curl -s https://codecov.io/bash) -f $CODECOV_OUTPUT/lcovhtml/lcov.info -F unittest;
   publish-docs:
     executor: test-executor
     description: Publish documentation to GitHub pages
@@ -261,6 +276,9 @@ workflows:
       - macos-build-check:
           requires:
             - prefetch-crates
+      - install:
+          requires:
+          - prefetch-crates
   docs:
     jobs:
       - publish-docs
