@@ -254,9 +254,6 @@ jobs:
             zip -0 ccov.zip `find . \( -name "forest*.gc*" \) -print`;
             ./grcov ccov.zip -s . -t lcov --llvm --branch --ignore-not-existing --ignore "/*" -o lcov.info;
             bash <(curl -s https://codecov.io/bash) -f lcov.info;
-      # - run:
-      #     name: Upload result to codecov.io
-      #     command: bash <(curl -s https://codecov.io/bash) -f $CODECOV_OUTPUT/lcovhtml/lcov.info -F unittest;
   publish-docs:
     executor: test-executor
     description: Publish documentation to GitHub pages
