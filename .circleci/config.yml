@@ -227,17 +227,33 @@ jobs:
     executor: test-executor
     description: Run GRCOV 
     steps:
-      - build_setup
+      - checkout
+      - install_rust
+      - install_deps
+      - env_setup
+      - run:
+          name: Set rustc version
+          command: |
+            rustup default nightly
+            rustup update nightly
       - restore_cargo_package_cache
       - run:
-          name: Setup code coverage output
+          name: Install grcov
           command: |
-            echo "export CODECOV_OUTPUT=codecov" >> $BASH_ENV
+            curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-linux-x86_64.tar.bz2 | tar jxf -
       - run:
-          name: Run code coverage
+          name: Run test suite
           command: |
-            grcov . -o lcov.info -t bash <(curl -s https://codecov.io/bash)
-          no_output_timeout: 20m
+            export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
+            export RUSTDOCFLAGS="-Cpanic=abort"
+            cargo build --verbose $CARGO_OPTIONS
+            cargo test --verbose $CARGO_OPTIONS
+      - run:
+          name: Upload to codecov
+          command: |
+            zip -0 ccov.zip `find . \( -name "forest*.gc*" \) -print`;
+            ./grcov ccov.zip -s . -t lcov --llvm --branch --ignore-not-existing --ignore "/*" -o lcov.info;
+            bash <(curl -s https://codecov.io/bash) -f lcov.info;
       # - run:
       #     name: Upload result to codecov.io
       #     command: bash <(curl -s https://codecov.io/bash) -f $CODECOV_OUTPUT/lcovhtml/lcov.info -F unittest;
