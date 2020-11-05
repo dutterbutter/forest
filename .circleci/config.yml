@@ -116,7 +116,6 @@ jobs:
     description: Check nightly build
     steps:
       - checkout
-      - restore_cargo_package_cache
       - run:
           name: Nightly Build
           command: |
@@ -177,6 +176,7 @@ jobs:
       GRCOVFLAGS: -s . --llvm --branch --ignore-not-existing --ignore "/*"
     steps:
       - checkout
+      - install_deps
       - run:
           name: Build tests with coverage
           command: CARGO_INCREMENTAL=0 RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY t --no-run --all-features
