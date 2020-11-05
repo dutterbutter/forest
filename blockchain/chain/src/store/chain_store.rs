@@ -834,7 +834,7 @@ pub async fn sub_head_changes(
 #[cfg(feature = "json")]
 pub mod headchange_json {
     use super::*;
-    use blocks::{tipset::tipset_json::TipsetJsonRef};
+    use blocks::tipset::tipset_json::TipsetJsonRef;
     use serde::Serialize;
 
     #[derive(Serialize)]
