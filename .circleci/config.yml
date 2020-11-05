@@ -192,7 +192,7 @@ jobs:
       - run:
           name: Generate report
           command: >
-            docker run --security-opt seccomp=unconfined -e
+            docker run --security-opt seccomp=unconfined -e CODECOV_TOKEN=${CODECOV_TOKEN}
             -v $PWD:/volume xd009642/tarpaulin cargo tarpaulin -v --ciserver circle-ci
             --out Xml --all-features
       - run:
