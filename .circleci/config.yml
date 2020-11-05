@@ -146,6 +146,10 @@ jobs:
             rustc -V
       - rust_setup
       - env_setup
+      - run: 
+          name: Install deps
+          command: |
+            brew install hwloc
       - run:
           name: Macos build
           command: |
@@ -198,6 +202,21 @@ jobs:
       - run:
           name: Upload
           command: bash <(curl -s https://codecov.io/bash) -Z -f cobertura.xml
+  coverage_2:
+    executor: test-executor
+    description: Run GRCOV 
+    steps:
+      - build_setup
+      - restore_cargo_package_cache
+      - run:
+          name: Setup code coverage output
+          command: |
+            echo "export CODECOV_OUTPUT=codecov" >> $BASH_ENV
+      - run:
+          name: Run code coverage
+          command: |
+            cargo run --package x --bin x -- test --html-cov-dir=$CODECOV_OUTPUT/grcovhtml/ --html-lcov-dir=$CODECOV_OUTPUT/lcovhtml/ --no-fail-fast -j 10 || true
+          no_output_timeout: 20m
   install:
     executor: test-executor
     description: Install forest binary
@@ -248,3 +267,4 @@ workflows:
   coverage:
     jobs:
       - coverage
+      - coverage_2
