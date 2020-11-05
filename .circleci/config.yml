@@ -247,7 +247,7 @@ jobs:
           command: |
             export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
             export RUSTDOCFLAGS="-Cpanic=abort"
-            cargo build --verbose $CARGO_OPTIONS
+            RUST_BACKTRACE=1 cargo build --verbose $CARGO_OPTIONS
             cargo test --verbose $CARGO_OPTIONS
       - run:
           name: Upload to codecov
