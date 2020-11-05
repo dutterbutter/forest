@@ -5,7 +5,6 @@ executors:
     machine:
       image: ubuntu-1604:202004-01
     resource_class: xlarge
-  
 
 commands:
   install_rust:
@@ -101,77 +100,6 @@ commands:
       - env_setup
       - install_deps
 jobs:
-  # cov:
-  #   machine: true
-  #   steps:
-  #     - checkout
-  #     - run:
-  #         name: Pull xd009642/tarpaulin
-  #         command: docker pull xd009642/tarpaulin:latest
-  #     - run:
-  #         name: Generate report
-  #         command: >
-  #           docker run --security-opt seccomp=unconfined -e CODECOV_TOKEN=${CODECOV_TOKEN}
-  #           -v $PWD:/volume xd009642/tarpaulin cargo tarpaulin -v --ciserver circle-ci
-  #           --out Xml --all-features
-  #     - run:
-  #         name: Upload
-  #         command: bash <(curl -s https://codecov.io/bash) -Z -f cobertura.xml
-  # coverage:
-  #   executor: test-executor
-  #   description: Run code coverage
-  #   steps:
-  #     - build_setup
-  #     - restore_cargo_package_cache
-  #     - run:
-  #         name: Setup code coverage output
-  #         command: |
-  #           echo "export CODECOV_OUTPUT=codecov" >> $BASH_ENV
-  #     - run:
-  #         name: Run code coverage
-  #         command: |
-  #           cargo test --all-features --html-cov-dir=$CODECOV_OUTPUT/grcovhtml/ --html-lcov-dir=$CODECOV_OUTPUT/lcovhtml/ --no-fail-fast -j 10 || true
-  #         no_output_timeout: 20m
-  #     - run:
-  #         name: Upload result to codecov.io
-  #         command: bash <(curl -s https://codecov.io/bash) -f $CODECOV_OUTPUT/lcovhtml/lcov.info -F unittest;
-  coverage:
-    executor: test-executor
-    description: Run Rust tests
-    environment:
-      GRCOVFLAGS: -s . --llvm --branch --ignore-not-existing --ignore "/*"
-    steps:
-      - build_setup
-      - restore_cargo_package_cache
-      - run:
-          name: Build tests with coverage
-          command: CARGO_INCREMENTAL=0 RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY t --no-run --all-features
-      - run:
-          name: Run tests
-          command: |
-            # TODO: Store test results in json `--format json`
-            # TODO: Fix coverage on zkp-macros-lib
-            # TODO: Enable --nocapture
-            CARGO_INCREMENTAL=0 RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY t --workspace
-            rustup run nightly cargo +$NIGHTLY t --package
-      - run:
-          name: Combine coverage
-          command: |
-            zip -0 target/ccov.zip `find . \( -name "*.gc*" \) -print`
-            grcov target/ccov.zip $GRCOVFLAGS -t lcov -o target/lcov.info
-      - run:
-          name: Submit to codecov
-          command: |
-            bash <(curl -s https://codecov.io/bash)
-  # test-vectors:
-  #   executor: test-executor
-  #   description: Run serialization and conformance tests
-  #   steps:
-  #     - build_setup
-  #     - restore_cargo_package_cache
-  #     - run:
-  #         name: Run test vectors
-  #         command: make run-vectors
   prefetch-crates:
     executor: test-executor
     description: Prefetch cargo crates for subsequent jobs.
@@ -182,6 +110,18 @@ jobs:
           name: Fetch workspace dependencies over network
           command: cargo fetch
       - save_cargo_package_cache
+  nightly-build-check:
+    executor: test-executor
+    description: Check nightly build
+    steps:
+      - build_setup
+      - restore_cargo_package_cache
+      - run:
+          name: Nightly Build
+          command: |
+            rustup run nightly rustc --version --verbose
+            rustup run nightly cargo --version --verbose
+            rustup run nightly cargo build
   lint:
     executor: test-executor
     description: Run Rust linting tools.
@@ -212,6 +152,50 @@ jobs:
       - run:
           name: Run test vectors
           command: make run-vectors
+  # cov:
+  #   machine: true
+  #   steps:
+  #     - checkout
+  #     - run:
+  #         name: Pull xd009642/tarpaulin
+  #         command: docker pull xd009642/tarpaulin:latest
+  #     - run:
+  #         name: Generate report
+  #         command: >
+  #           docker run --security-opt seccomp=unconfined -e CODECOV_TOKEN=${CODECOV_TOKEN}
+  #           -v $PWD:/volume xd009642/tarpaulin cargo tarpaulin -v --ciserver circle-ci
+  #           --out Xml --all-features
+  #     - run:
+  #         name: Upload
+  #         command: bash <(curl -s https://codecov.io/bash) -Z -f cobertura.xml
+  coverage:
+    executor: test-executor
+    description: Run Rust tests
+    environment:
+      GRCOVFLAGS: -s . --llvm --branch --ignore-not-existing --ignore "/*"
+    steps:
+      - build_setup
+      - restore_cargo_package_cache
+      - run:
+          name: Build tests with coverage
+          command: CARGO_INCREMENTAL=0 RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY t --no-run --all-features
+      - run:
+          name: Run tests
+          command: |
+            # TODO: Store test results in json `--format json`
+            # TODO: Fix coverage on zkp-macros-lib
+            # TODO: Enable --nocapture
+            CARGO_INCREMENTAL=0 RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY t --workspace
+            rustup run nightly cargo +$NIGHTLY t --package
+      - run:
+          name: Combine coverage
+          command: |
+            zip -0 target/ccov.zip `find . \( -name "*.gc*" \) -print`
+            grcov target/ccov.zip $GRCOVFLAGS -t lcov -o target/lcov.info
+      - run:
+          name: Submit to codecov
+          command: |
+            bash <(curl -s https://codecov.io/bash)
   install:
     executor: test-executor
     description: Install forest binary
@@ -219,7 +203,7 @@ jobs:
       - build_setup
       - restore_cargo_package_cache
       - run:
-          name: Build Unit Tests
+          name: Install binary
           command: make install
   publish-docs:
     executor: test-executor
@@ -230,9 +214,6 @@ jobs:
       - run:
           name: Build Docs
           command: cargo doc --no-deps --all-features
-      # - add_ssh_keys:
-      #     fingerprints:
-      #       - "68:80:3e:38:03:0e:2c:96:ef:6d:ef:13:01:af:18:bd"
       - run:
           name: Publish Docs
           command: bash ./scripts/build-rust-docs.sh
@@ -241,18 +222,18 @@ workflows:
   setup_test:
     jobs:
       - prefetch-crates
+      - lint:
+          requires:
+            - prefetch-crates
       - test:
+          requires:
+            - prefetch-crates
+      - test-vectors:
           requires:
             - prefetch-crates
   docs:
     jobs:
-      - prefetch-crates
-      - publish-docs:
-          requires:
-            - prefetch-crates
+      - publish-docs
   coverage:
     jobs:
       - coverage
-      # - build-nightly:
-      #     requires:
-      #         - prefetch-crates/**/*.js
