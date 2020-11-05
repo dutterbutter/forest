@@ -129,6 +129,20 @@ jobs:
             rustup run nightly rustc --version --verbose
             rustup run nightly cargo --version --verbose
             rustup run nightly cargo build
+  macos-build-check:
+    macos:
+      xcode: 11.3.0
+    description: Check macos build
+    steps:
+      - checkout
+      - install_rust
+      - rust_setup
+      - env_setup
+      - run:
+          name: Macos build
+          command: |
+            cargo clean
+            cargo build
   lint:
     executor: test-executor
     description: Run Rust linting tools.
@@ -159,57 +173,28 @@ jobs:
       - run:
           name: Run test vectors
           command: make run-vectors
-  # cov:
-  #   machine: true
-  #   steps:
-  #     - checkout
-  #     - run:
-  #         name: Pull xd009642/tarpaulin
-  #         command: docker pull xd009642/tarpaulin:latest
-  #     - run:
-  #         name: Generate report
-  #         command: >
-  #           docker run --security-opt seccomp=unconfined -e CODECOV_TOKEN=${CODECOV_TOKEN}
-  #           -v $PWD:/volume xd009642/tarpaulin cargo tarpaulin -v --ciserver circle-ci
-  #           --out Xml --all-features
-  #     - run:
-  #         name: Upload
-  #         command: bash <(curl -s https://codecov.io/bash) -Z -f cobertura.xml
   coverage:
-    executor: test-executor
-    description: Run Rust tests
-    environment:
-      GRCOVFLAGS: -s . --llvm --branch --ignore-not-existing --ignore "/*"
+    machine: true
     steps:
       - checkout
-      - install_rust
-      - install_deps
-      - env_setup
       - run:
-          name: Set rustc version
+          name: Pull xd009642/tarpaulin
+          command: docker pull xd009642/tarpaulin:latest
+      - run:
+          name: 
           command: |
-            rustup default nightly
-            rustup update nightly
+            cargo clean
+            cargo build
+            make test-all
       - run:
-          name: Build tests with coverage
-          command: RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY --verbose t --no-run --all-features
+          name: Generate report
+          command: >
+            docker run --security-opt seccomp=unconfined -e
+            -v $PWD:/volume xd009642/tarpaulin cargo tarpaulin -v --ciserver circle-ci
+            --out Xml --all-features
       - run:
-          name: Run tests
-          command: |
-            # TODO: Store test results in json `--format json`
-            # TODO: Fix coverage on zkp-macros-lib
-            # TODO: Enable --nocapture
-            CARGO_INCREMENTAL=0 RUSTFLAGS="$COVFLAGS" cargo +$NIGHTLY t --workspace
-            rustup run nightly cargo +$NIGHTLY t --package
-      - run:
-          name: Combine coverage
-          command: |
-            zip -0 target/ccov.zip `find . \( -name "*.gc*" \) -print`
-            grcov target/ccov.zip $GRCOVFLAGS -t lcov -o target/lcov.info
-      - run:
-          name: Submit to codecov
-          command: |
-            bash <(curl -s https://codecov.io/bash)
+          name: Upload
+          command: bash <(curl -s https://codecov.io/bash) -Z -f cobertura.xml
   install:
     executor: test-executor
     description: Install forest binary
@@ -249,6 +234,9 @@ workflows:
     jobs:
       - prefetch-crates
       - nightly-build-check:
+          requires:
+            - prefetch-crates
+      - macos-build-check:
           requires:
             - prefetch-crates
   docs:
