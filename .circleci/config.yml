@@ -5,6 +5,10 @@ executors:
     machine:
       image: ubuntu-1604:202004-01
     resource_class: xlarge
+  mac-executor:
+    macos:
+      xcode: 12.0.1
+    resource_class: xlarge
 
 ######################################################################################################################
   #  Reusable single command definitions
@@ -140,8 +144,7 @@ jobs:
             rustup run nightly cargo --version --verbose
             rustup run nightly cargo build
   macos-build-check:
-    macos:
-      xcode: 12.0.1
+    executor: mac-executor
     description: Check macos build
     steps:
       - checkout
