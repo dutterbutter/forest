@@ -212,10 +212,13 @@ jobs:
           name: Run test vectors
           command: make run-vectors
   coverage:
-    executor: mac-executor
+    executor: test-executor
     description: Run coverage reporting using grcov
     steps:
       - checkout
+      - when:
+        condition:
+          equal: [ db/wip, << pipeline.git.branch >> ]
       - run:
           name: Install rust toolchain          
           command: |
@@ -226,15 +229,12 @@ jobs:
             export PATH="${HOME}/.cargo/bin:${PATH}"
             rustc -V
       - env_setup
+      - install_deps
       - run:
           name: Set rustc version
           command: |
             rustup default nightly
             rustup update nightly
-      - run: 
-          name: Install deps
-          command: |
-            brew install hwloc
       - restore_cargo_package_cache
       - run:
           name: Install grcov
@@ -313,9 +313,19 @@ workflows:
       - macos-build-check:
           requires:
             - prefetch-crates
+  daily-check:
+    triggers:
+      - schedule:
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only:
+                - main
+    jobs:
+      - prefetch-crates
       - install:
           requires:
-          - prefetch-crates
+            - prefetch-crates
   docs:
     jobs:
       - publish-docs:
