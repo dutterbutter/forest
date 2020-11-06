@@ -296,7 +296,11 @@ workflows:
           - prefetch-crates
   docs:
     jobs:
-      - publish-docs
+      - publish-docs:
+        filters:
+          branches:
+            only:
+              - main
   coverage:
     jobs:
       - coverage
