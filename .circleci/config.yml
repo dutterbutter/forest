@@ -206,15 +206,20 @@ jobs:
   test-vectors:
     executor: test-executor
     description: Run serialization and conformance tests
+    parallelism: 2
     steps:
       - build_setup
       - restore_cargo_package_cache
       - run:
+          name: Split tests for parallelism
+          command: |
+            echo $(circleci tests glob "tests/**/**")
+            circleci tests glob "tests/**/**" | xargs -n 1 echo
+      - run:
           name: Run test vectors
           command: make run-vectors
   coverage:
-    macos:
-      xcode: 12.0.1
+    executor: mac-executor
     description: Run coverage reporting using grcov
     steps:
       - checkout
@@ -246,8 +251,9 @@ jobs:
           name: Run test suite
           command: |
             export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Coverflow-checks=off"
-            cargo build --verbose $CARGO_OPTIONS
-            sudo cargo test --all-features --verbose $CARGO_OPTIONS
+            make build
+            sudo make test-vectors
+            sudo make test-all
       - run:
           name: Upload to codecov
           command: |
