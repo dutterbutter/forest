@@ -231,8 +231,9 @@ jobs:
           name: Run test suite
           command: |
             export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Coverflow-checks=off"
-            RUST_BACKTRACE=1 cargo build --verbose $CARGO_OPTIONS
-            RUST_BACKTRACE=1 cargo test --verbose $CARGO_OPTIONS
+            cargo build --verbose $CARGO_OPTIONS
+            sudo make test-vectors
+            make test-all
       - run:
           name: Upload to codecov
           command: |
