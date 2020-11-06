@@ -29,7 +29,7 @@ FROM debian:buster-slim
 
 # Install binary dependencies
 RUN apt-get update && \
-    apt-get install --no-install-recommends -y curl file gcc g++ hwloc libhwloc-dev make openssh-client \
+    apt-get install --no-install-recommends -y curl file gcc g++ hwloc libhwloc-dev \
     autoconf automake cmake libtool libcurl4 libcurl4-openssl-dev libssl-dev \
     libelf-dev libdw-dev binutils-dev zlib1g-dev libiberty-dev wget \
     xz-utils pkg-config python clang ocl-icd-opencl-dev ca-certificates
