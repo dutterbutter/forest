@@ -244,17 +244,19 @@ jobs:
     executor: test-executor
     description: Publish documentation to GitHub pages
     steps:
+      - checkout
       - when:
-        condition:
-          equal: [ main, << pipeline.git.branch >> ]
-      - build_setup
-      - restore_cargo_package_cache
-      - run:
-          name: Build Docs
-          command: cargo doc --no-deps --all-features
-      - run:
-          name: Publish Docs
-          command: bash ./scripts/build-rust-docs.sh
+          condition:
+            equal: [ main, << pipeline.git.branch >> ]
+          steps:
+            - build_setup
+            - restore_cargo_package_cache  
+            - run:
+                name: Build Docs
+                command: cargo doc --no-deps --all-features
+            - run:
+                name: Publish Docs
+                command: bash ./scripts/build-rust-docs.sh
 
 ######################################################################################################################
   #  Security audit
