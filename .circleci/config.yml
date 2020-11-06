@@ -5,6 +5,10 @@ executors:
     machine:
       image: ubuntu-1604:202004-01
     resource_class: xlarge
+  mac-executor:
+    macos:
+      xcode: 12.0.1
+    resource_class: xlarge
 
 ######################################################################################################################
   #  Reusable single command definitions
@@ -59,8 +63,7 @@ commands:
                 curl file gcc g++ git make openssh-client \
                 autoconf automake cmake libtool libcurl4-openssl-dev libssl-dev llvm\
                 libelf-dev libdw-dev binutils-dev zlib1g-dev libiberty-dev wget \
-                xz-utils pkg-config python libclang-6.0-dev clang++-6 ocl-icd-opencl-dev libgflags-dev libhwloc-dev
-            sudo ln -s /usr/bin/clang-6.0 /usr/bin/clang
+                xz-utils pkg-config python libclang-6.0-dev clang ocl-icd-opencl-dev libgflags-dev libhwloc-dev
             rustup component add clippy rustfmt
             git submodule update --init
 
@@ -119,6 +122,7 @@ jobs:
 ######################################################################################################################
   #  Build related jobs
 ######################################################################################################################
+  # TODO change builds over to matrix style once Windows build is ready
   nightly-build-check:
     executor: test-executor
     description: Check nightly build
@@ -139,8 +143,7 @@ jobs:
             rustup run nightly cargo --version --verbose
             rustup run nightly cargo build
   macos-build-check:
-    macos:
-      xcode: 12.0.1
+    executor: mac-executor
     description: Check macos build
     steps:
       - checkout
@@ -209,34 +212,30 @@ jobs:
           name: Run test vectors
           command: make run-vectors
   coverage:
-    machine: true
+    executor: mac-executor
+    description: Run coverage reporting using grcov
     steps:
       - checkout
       - run:
-          name: Pull xd009642/tarpaulin
-          command: docker pull xd009642/tarpaulin:latest
-      - run:
-          name: Generate report
-          command: >
-            docker run --security-opt seccomp=unconfined -e CODECOV_TOKEN=${CODECOV_TOKEN}
-            -v $PWD:/volume xd009642/tarpaulin cargo tarpaulin -v --ciserver circle-ci
-            --out Xml --all-features
-      - run:
-          name: Upload
-          command: bash <(curl -s https://codecov.io/bash) -Z -f cobertura.xml
-  coverage_2:
-    executor: test-executor
-    description: Run GRCOV 
-    steps:
-      - checkout
-      - install_rust
-      - install_deps
+          name: Install rust toolchain          
+          command: |
+            curl https://sh.rustup.rs -sSf -o install_rust.sh
+            chmod +x install_rust.sh
+            ./install_rust.sh -q -y
+            rm install_rust.sh
+            export PATH="${HOME}/.cargo/bin:${PATH}"
+            rustc -V
       - env_setup
       - run:
           name: Set rustc version
           command: |
             rustup default nightly
             rustup update nightly
+      - run: 
+          name: Install deps
+          command: |
+            brew install hwloc
+            brew install git
       - restore_cargo_package_cache
       - run:
           name: Install grcov
@@ -246,30 +245,50 @@ jobs:
           name: Run test suite
           command: |
             export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Coverflow-checks=off"
-            RUST_BACKTRACE=1 cargo build --verbose $CARGO_OPTIONS
-            RUST_BACKTRACE=1 make test-vectors
-            RUST_BACKTRACE=1 cargo test --all-features --verbose $CARGO_OPTIONS
+            make build
+            mkdir ~/.ssh/ && echo -e "Host github.com\n\tStrictHostKeyChecking no\n" > ~/.ssh/config
+            git submodule update --init
+            sudo make run-vectors
+            sudo make test-all
       - run:
           name: Upload to codecov
           command: |
             zip -0 ccov.zip `find . \( -name "forest*.gc*" \) -print`;
-            ./grcov ccov.zip -s . -t lcov --llvm --branch --ignore-not-existing --ignore "/*" -o lcov.info;
+            ./grcov ccov.zip -s . -t lcov --llvm --branch --ignore-not-existing --ignore "/*" --ignore="target/debug/build/*" --ignore="tests/*" --ignore="blockchain/beacon/tests/*" -o lcov.info;
             bash <(curl -s https://codecov.io/bash) -f lcov.info;
-      # - run:
-      #     name: Upload result to codecov.io
-      #     command: bash <(curl -s https://codecov.io/bash) -f $CODECOV_OUTPUT/lcovhtml/lcov.info -F unittest;
   publish-docs:
     executor: test-executor
     description: Publish documentation to GitHub pages
     steps:
+      - checkout
+      - when:
+          condition:
+            equal: [ main, << pipeline.git.branch >> ]
+          steps:
+            - build_setup
+            - restore_cargo_package_cache  
+            - run:
+                name: Build Docs
+                command: cargo doc --no-deps --all-features
+            - run:
+                name: Publish Docs
+                command: bash ./scripts/build-rust-docs.sh
+
+######################################################################################################################
+  #  Security audit
+######################################################################################################################
+  security:
+    executor: test-executor
+    description: Cargo audit
+    steps:
       - build_setup
       - restore_cargo_package_cache
       - run:
-          name: Build Docs
-          command: cargo doc --no-deps --all-features
+          name: Install dependency auditing tool
+          command: cargo install cargo-audit
       - run:
-          name: Publish Docs
-          command: bash ./scripts/build-rust-docs.sh
+          name: Check for known security issues in dependencies
+          command: cargo audit
 
 workflows:
   setup_test:
@@ -298,8 +317,20 @@ workflows:
           - prefetch-crates
   docs:
     jobs:
-      - publish-docs
+      - publish-docs:
+        filters:
+          branches:
+            only:
+              - main
   coverage:
     jobs:
-      - coverage
-      - coverage_2
+      - prefetch-crates
+      - coverage:
+          requires:
+            - prefetch-crates
+  security:
+    jobs:
+      - prefetch-crates
+      - security:
+          requires:
+            - prefetch-crates
