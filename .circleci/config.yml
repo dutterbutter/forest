@@ -232,7 +232,7 @@ jobs:
           command: |
             export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Coverflow-checks=off"
             cargo build --verbose $CARGO_OPTIONS
-            make run-vectors
+            sudo make run-vectors
             cargo test --all-features --verbose $CARGO_OPTIONS
       - run:
           name: Upload to codecov
