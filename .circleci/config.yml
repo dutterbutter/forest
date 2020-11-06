@@ -308,7 +308,10 @@ workflows:
               - main
   coverage:
     jobs:
-      - coverage
+      - prefetch-crates
+      - coverage:
+          requires:
+            - prefetch-crates
   security:
     jobs:
       - prefetch-crates
