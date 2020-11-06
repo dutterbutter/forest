@@ -235,12 +235,14 @@ jobs:
           name: Install deps
           command: |
             brew install hwloc
-            brew install git
       - restore_cargo_package_cache
       - run:
           name: Install grcov
           command: |
             curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-linux-x86_64.tar.bz2 | tar jxf -
+      - run:
+          name: Avoid hosts unknown for github
+          command: mkdir ~/.ssh/ && echo -e "Host github.com\n\tStrictHostKeyChecking no\n" > ~/.ssh/config
       - run:
           name: Run test suite
           command: |
