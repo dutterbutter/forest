@@ -11,7 +11,7 @@ pub use self::payload::{BLSPublicKey, Payload};
 pub use self::protocol::Protocol;
 
 use data_encoding::Encoding;
-use data_encoding_macro::{internal_new_encoding, new_encoding};
+use data_encoding_macro::new_encoding;
 use encoding::{blake2b_variable, serde_bytes, Cbor};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;

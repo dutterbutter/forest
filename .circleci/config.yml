@@ -232,8 +232,13 @@ jobs:
           command: |
             export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Coverflow-checks=off"
             cargo build --verbose $CARGO_OPTIONS
-            sudo make test-vectors
-            make test-all
+            git submodule update --init
+            echo 'running serialization_tests'
+            sudo cargo test --release --manifest-path=$(tests/serialization_tests)/Cargo.toml --features "submodule_tests"
+            echo 'running conformance_tests'
+            sudo cargo test --release --manifest-path=$(tests/conformance_tests)/Cargo.toml --features "submodule_tests" -- --nocapture
+            echo 'running cargo test all'
+            sudo cargo test --all-features
       - run:
           name: Upload to codecov
           command: |
