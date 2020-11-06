@@ -244,6 +244,9 @@ jobs:
     executor: test-executor
     description: Publish documentation to GitHub pages
     steps:
+      - when:
+        condition:
+          equal: [ main, << pipeline.git.branch >> ]
       - build_setup
       - restore_cargo_package_cache
       - run:
