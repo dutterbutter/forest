@@ -229,6 +229,7 @@ jobs:
             export PATH="${HOME}/.cargo/bin:${PATH}"
             rustc -V
       - env_setup
+      - install_rust
       - install_deps
       - run:
           name: Set rustc version
