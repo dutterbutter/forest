@@ -206,15 +206,9 @@ jobs:
   test-vectors:
     executor: test-executor
     description: Run serialization and conformance tests
-    parallelism: 2
     steps:
       - build_setup
       - restore_cargo_package_cache
-      - run:
-          name: Split tests for parallelism
-          command: |
-            echo $(circleci tests glob "tests/**/**")
-            circleci tests glob "tests/**/**" | xargs -n 1 echo
       - run:
           name: Run test vectors
           command: make run-vectors
@@ -252,6 +246,7 @@ jobs:
           command: |
             export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Coverflow-checks=off"
             make build
+            mkdir ~/.ssh/ && echo -e "Host github.com\n\tStrictHostKeyChecking no\n" > ~/.ssh/config
             sudo make test-vectors
             sudo make test-all
       - run:
