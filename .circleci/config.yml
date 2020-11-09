@@ -339,14 +339,11 @@ workflows:
                 - master
   coverage:
     jobs:
-      - prefetch-crates
       - coverage:
-          requires:
-            - prefetch-crates
           filters:
             branches:
               only:
-                - main
+                - master
   security:
     jobs:
       - prefetch-crates
