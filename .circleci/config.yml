@@ -253,6 +253,7 @@ jobs:
                 export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Coverflow-checks=off"
                 make build
                 git submodule update --init
+                sudo make run-vectors
                 sudo make test-all
           - run:
               name: Upload to codecov
