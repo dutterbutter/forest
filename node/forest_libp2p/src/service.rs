@@ -7,12 +7,16 @@ use super::{ForestBehaviour, ForestBehaviourEvent, Libp2pConfig};
 use crate::hello::{HelloRequest, HelloResponse};
 use async_std::sync::{channel, Receiver, Sender};
 use async_std::{stream, task};
-use forest_cid::{multihash::Blake2b256, Cid};
+use chain::ChainStore;
+use forest_blocks::GossipBlock;
+use forest_cid::{Cid, Code::Blake2b256};
 use forest_encoding::from_slice;
+use forest_message::SignedMessage;
 use futures::channel::oneshot::Sender as OneShotSender;
 use futures::select;
 use futures_util::stream::StreamExt;
 use ipld_blockstore::BlockStore;
+pub use libp2p::gossipsub::Topic;
 use libp2p::{
     core,
     core::muxing::StreamMuxerBox,
@@ -27,10 +31,6 @@ use std::io::{Error, ErrorKind};
 use std::sync::Arc;
 use std::time::Duration;
 use utils::read_file_to_vec;
-
-use forest_blocks::GossipBlock;
-use forest_message::SignedMessage;
-pub use libp2p::gossipsub::Topic;
 
 pub const PUBSUB_BLOCK_STR: &str = "/fil/blocks";
 pub const PUBSUB_MSG_STR: &str = "/fil/msgs";
@@ -93,11 +93,15 @@ pub enum NetworkMessage {
         peer_id: PeerId,
         request: HelloRequest,
     },
+    BitswapRequest {
+        cid: Cid,
+        response_channel: OneShotSender<()>,
+    },
 }
 /// The Libp2pService listens to events from the Libp2p swarm.
-pub struct Libp2pService<DB: BlockStore> {
+pub struct Libp2pService<DB> {
     pub swarm: Swarm<ForestBehaviour>,
-    db: Arc<DB>,
+    cs: Arc<ChainStore<DB>>,
     /// Keeps track of Blocksync requests to responses
     bs_request_table: HashMap<RequestId, OneShotSender<BlockSyncResponse>>,
     network_receiver_in: Receiver<NetworkMessage>,
@@ -105,6 +109,7 @@ pub struct Libp2pService<DB: BlockStore> {
     network_receiver_out: Receiver<NetworkEvent>,
     network_sender_out: Sender<NetworkEvent>,
     network_name: String,
+    bitswap_response_channels: HashMap<Cid, Vec<OneShotSender<()>>>,
 }
 
 impl<DB> Libp2pService<DB>
@@ -114,7 +119,7 @@ where
     /// Constructs a Libp2pService
     pub fn new(
         config: Libp2pConfig,
-        db: Arc<DB>,
+        cs: Arc<ChainStore<DB>>,
         net_keypair: Keypair,
         network_name: &str,
     ) -> Self {
@@ -145,13 +150,14 @@ where
 
         Libp2pService {
             swarm,
-            db,
+            cs,
             bs_request_table: HashMap::new(),
             network_receiver_in,
             network_sender_in,
             network_receiver_out,
             network_sender_out,
             network_name: network_name.to_owned(),
+            bitswap_response_channels: Default::default(),
         }
     }
 
@@ -230,7 +236,7 @@ where
                         }
                         ForestBehaviourEvent::BlockSyncRequest { channel, peer, request } => {
                             debug!("Received blocksync request (peerId: {:?})", peer);
-                            let db = self.db.clone();
+                            let db = self.cs.clone();
                             async {
                                 let response = task::spawn_blocking(move || -> BlockSyncResponse {
                                     make_blocksync_response(db.as_ref(), &request)
@@ -243,7 +249,7 @@ where
                             let tx = self.bs_request_table.remove(&request_id);
 
                             if let Some(tx) = tx {
-                                if let Err(e) = tx.send(response) {
+                                if tx.send(response).is_err() {
                                     debug!("RPCResponse receive failed")
                                 }
                             }
@@ -251,14 +257,21 @@ where
                                 debug!("RPCResponse receive failed: channel not found");
                             };
                         }
-                        ForestBehaviourEvent::BitswapReceivedBlock(peer_id, cid, block) => {
-                            let res: Result<_, String> = self.db.put(&block, Blake2b256).map_err(|e| e.to_string());
+                        ForestBehaviourEvent::BitswapReceivedBlock(_peer_id, cid, block) => {
+                            let res: Result<_, String> = self.cs.blockstore().put_raw(block.into(), Blake2b256).map_err(|e| e.to_string());
                             match res {
                                 Ok(actual_cid) => {
                                     if actual_cid != cid {
                                         warn!("Bitswap cid mismatch: cid {:?}, expected cid: {:?}", actual_cid, cid);
+                                    } else if let Some (chans) = self.bitswap_response_channels.remove(&cid) {
+                                            for chan in chans.into_iter(){
+                                                if chan.send(()).is_err() {
+                                                    debug!("Bitswap response channel send failed");
+                                                }
+                                                trace!("Saved Bitswap block with cid {:?}", cid);
+                                        }
                                     } else {
-                                        trace!("saved bitswap block with cid {:?}", cid);
+                                        warn!("Received Bitswap response, but response channel cannot be found");
                                     }
                                     emit_event(&self.network_sender_out, NetworkEvent::BitswapBlock{cid}).await;
                                 }
@@ -267,7 +280,7 @@ where
                                 }
                             }
                         },
-                        ForestBehaviourEvent::BitswapReceivedWant(peer_id, cid,) =>  match self.db.get(&cid) {
+                        ForestBehaviourEvent::BitswapReceivedWant(peer_id, cid,) => match self.cs.blockstore().get(&cid) {
                             Ok(Some(data)) => {
                                 match swarm_stream.get_mut().send_block(&peer_id, cid, data) {
                                     Ok(_) => trace!("Sent bitswap message successfully"),
@@ -298,6 +311,15 @@ where
                             let id = swarm_stream.get_mut().send_rpc_request(&peer_id, RPCRequest::BlockSync(request));
                             debug!("Sent BS Request with id: {:?}", id);
                             self.bs_request_table.insert(id, response_channel);
+                        }
+                        NetworkMessage::BitswapRequest { cid, response_channel } => {
+                            if let Err(e) = swarm_stream.get_mut().want_block(cid, 1000) {
+                                warn!("Failed to send a bitswap want_block: {}", e.to_string());
+                            } else if let Some(chans) = self.bitswap_response_channels.get_mut(&cid) {
+                                    chans.push(response_channel);
+                                } else {
+                                    self.bitswap_response_channels.insert(cid, vec![response_channel]);
+                                }
                         }
                     }
                     None => { break; }

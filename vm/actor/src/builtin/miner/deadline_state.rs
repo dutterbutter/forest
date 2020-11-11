@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{actor_error, ActorDowncast, ActorError, ExitCode, TokenAmount};
 use bitfield::BitField;
-use cid::{multihash::Blake2b256, Cid};
+use cid::{Cid, Code::Blake2b256};
 use clock::ChainEpoch;
 use encoding::tuple::*;
 use fil_types::{deadlines::QuantSpec, SectorSize};
@@ -123,7 +123,7 @@ pub struct Deadline {
 impl Deadline {
     pub fn new(empty_array_cid: Cid) -> Self {
         Self {
-            partitions: empty_array_cid.clone(),
+            partitions: empty_array_cid,
             expirations_epochs: empty_array_cid,
             post_submissions: BitField::new(),
             early_terminations: BitField::new(),
@@ -439,7 +439,7 @@ impl Deadline {
         store: &BS,
         sectors: &Sectors<'_, BS>,
         epoch: ChainEpoch,
-        partition_sectors: &PartitionSectorMap,
+        partition_sectors: &mut PartitionSectorMap,
         sector_size: SectorSize,
         quant: QuantSpec,
     ) -> Result<PowerPair, Box<dyn StdError>> {
@@ -611,7 +611,7 @@ impl Deadline {
         sector_size: SectorSize,
         quant: QuantSpec,
         fault_expiration_epoch: ChainEpoch,
-        partition_sectors: &PartitionSectorMap,
+        partition_sectors: &mut PartitionSectorMap,
     ) -> Result<PowerPair, Box<dyn StdError>> {
         let mut partitions = self.partitions_amt(store)?;
 
@@ -687,8 +687,8 @@ impl Deadline {
         store: &BS,
         sectors: &Sectors<'_, BS>,
         sector_size: SectorSize,
-        partition_sectors: &PartitionSectorMap,
-    ) -> Result<(), ActorError> {
+        partition_sectors: &mut PartitionSectorMap,
+    ) -> Result<(), Box<dyn StdError>> {
         let mut partitions = self.partitions_amt(store)?;
 
         for (partition_idx, sector_numbers) in partition_sectors.iter() {
@@ -705,7 +705,7 @@ impl Deadline {
 
             partition
                 .declare_faults_recovered(sectors, sector_size, sector_numbers)
-                .map_err(|e| e.wrap("failed to add recoveries"))?;
+                .map_err(|e| e.downcast_wrap("failed to add recoveries"))?;
 
             partitions.set(partition_idx, partition).map_err(|e| {
                 e.downcast_default(
@@ -870,7 +870,7 @@ impl Deadline {
         sector_size: SectorSize,
         quant: QuantSpec,
         fault_expiration: ChainEpoch,
-        post_partitions: &[PoStPartition],
+        post_partitions: &mut [PoStPartition],
     ) -> Result<PoStResult, Box<dyn StdError>> {
         let mut partitions = self.partitions_amt(store)?;
 
@@ -905,7 +905,7 @@ impl Deadline {
                     sector_size,
                     quant,
                     fault_expiration,
-                    &post.skipped,
+                    &mut post.skipped,
                 )
                 .map_err(|e| {
                     e.wrap(format!(
@@ -994,7 +994,7 @@ impl Deadline {
         store: &BS,
         sectors: &Sectors<'_, BS>,
         expiration: ChainEpoch,
-        partition_sectors: &PartitionSectorMap,
+        partition_sectors: &mut PartitionSectorMap,
         sector_size: SectorSize,
         quant: QuantSpec,
     ) -> Result<(), Box<dyn StdError>> {

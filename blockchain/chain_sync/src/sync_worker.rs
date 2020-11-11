@@ -17,7 +17,7 @@ use async_std::task::{self, JoinHandle};
 use beacon::{Beacon, BeaconEntry, IGNORE_DRAND_VAR};
 use blocks::{Block, BlockHeader, FullTipset, Tipset, TipsetKeys, TxMeta};
 use chain::{persist_objects, ChainStore};
-use cid::{multihash::Blake2b256, Cid};
+use cid::{Cid, Code::Blake2b256};
 use crypto::{verify_bls_aggregate, DomainSeparationTag};
 use encoding::{Cbor, Error as EncodingError};
 use fil_types::{
@@ -51,11 +51,8 @@ pub(crate) struct SyncWorker<DB, TBeacon, V> {
     /// manages retrieving and updates state objects.
     pub state_manager: Arc<StateManager<DB>>,
 
-    /// access and store tipsets / blocks / messages.
-    pub chain_store: Arc<ChainStore<DB>>,
-
     /// Context to be able to send requests to p2p network.
-    pub network: SyncNetworkContext,
+    pub network: SyncNetworkContext<DB>,
 
     /// The known genesis tipset.
     pub genesis: Arc<Tipset>,
@@ -74,6 +71,10 @@ where
     DB: BlockStore + Sync + Send + 'static,
     V: ProofVerifier + Sync + Send + 'static,
 {
+    fn chain_store(&self) -> &Arc<ChainStore<DB>> {
+        self.state_manager.chain_store()
+    }
+
     pub async fn spawn(self, mut inbound_channel: Receiver<Arc<Tipset>>) -> JoinHandle<()> {
         task::spawn(async move {
             while let Some(ts) = inbound_channel.next().await {
@@ -102,7 +103,7 @@ where
         }
 
         // Get heaviest tipset from storage to sync toward
-        let heaviest = self.chain_store.heaviest_tipset().await.unwrap();
+        let heaviest = self.chain_store().heaviest_tipset().await.unwrap();
 
         info!("Starting block sync...");
 
@@ -125,7 +126,7 @@ where
         // Persist header chain pulled from network
         self.set_stage(SyncStage::PersistHeaders).await;
         let headers: Vec<&BlockHeader> = tipsets.iter().map(|t| t.blocks()).flatten().collect();
-        if let Err(e) = persist_objects(self.chain_store.blockstore(), &headers) {
+        if let Err(e) = persist_objects(self.chain_store().blockstore(), &headers) {
             self.state.write().await.error(e.to_string());
             return Err(e.into());
         }
@@ -138,7 +139,7 @@ where
         self.set_stage(SyncStage::Complete).await;
 
         // At this point the head is synced and the head can be set as the heaviest.
-        self.chain_store.put_tipset(head.as_ref()).await?;
+        self.chain_store().put_tipset(head.as_ref()).await?;
 
         Ok(())
     }
@@ -179,7 +180,7 @@ where
             }
 
             // Try to load parent tipset from local storage
-            if let Ok(ts) = self.chain_store.tipset_from_keys(cur_ts.parents()) {
+            if let Ok(ts) = self.chain_store().tipset_from_keys(cur_ts.parents()) {
                 // Add blocks in tipset to accepted chain and push the tipset to return set
                 accepted_blocks.extend_from_slice(ts.cids());
                 return_set.push(ts);
@@ -254,7 +255,7 @@ where
             if let Some(reason) = self.bad_blocks.get(cid).await {
                 for bh in accepted_blocks {
                     self.bad_blocks
-                        .put(bh.clone(), format!("chain contained {}", cid))
+                        .put(*bh, format!("chain contained {}", cid))
                         .await;
                 }
 
@@ -279,7 +280,7 @@ where
             .blocksync_headers(None, head.parents(), FORK_LENGTH_THRESHOLD)
             .await?;
 
-        let mut ts = self.chain_store.tipset_from_keys(to.parents())?;
+        let mut ts = self.chain_store().tipset_from_keys(to.parents())?;
 
         for i in 0..tips.len() {
             while ts.epoch() > tips[i].epoch() {
@@ -288,7 +289,7 @@ where
                         "Synced chain forked at genesis, refusing to sync".to_string(),
                     ));
                 }
-                ts = self.chain_store.tipset_from_keys(ts.parents())?;
+                ts = self.chain_store().tipset_from_keys(ts.parents())?;
             }
             if ts == tips[i] {
                 return Ok(tips[0..=i].to_vec());
@@ -308,7 +309,7 @@ where
 
         while let Some(ts) = ts_iter.next() {
             // check storage first to see if we have full tipset
-            let fts = match self.chain_store.fill_tipset(ts) {
+            let fts = match self.chain_store().fill_tipset(ts) {
                 Ok(fts) => fts,
                 Err(ts) => {
                     // no full tipset in storage; request messages via blocksync
@@ -349,8 +350,8 @@ where
 
                         // store messages
                         if let Some(m) = bundle.messages {
-                            self.chain_store.put_messages(&m.bls_msgs)?;
-                            self.chain_store.put_messages(&m.secp_msgs)?;
+                            chain::persist_objects(self.state_manager.blockstore(), &m.bls_msgs)?;
+                            chain::persist_objects(self.state_manager.blockstore(), &m.secp_msgs)?;
                         } else {
                             warn!("Blocksync request for messages returned null messages");
                         }
@@ -380,7 +381,7 @@ where
 
         let mut validations = FuturesUnordered::new();
         for b in fts.into_blocks() {
-            let cs = self.chain_store.clone();
+            let cs = self.chain_store().clone();
             let sm = self.state_manager.clone();
             let bc = self.beacon.clone();
             let v = task::spawn(async move { Self::validate_block(cs, sm, bc, Arc::new(b)).await });
@@ -390,7 +391,7 @@ where
         while let Some(result) = validations.next().await {
             match result {
                 Ok(b) => {
-                    self.chain_store.set_tipset_tracker(b.header()).await?;
+                    self.chain_store().set_tipset_tracker(b.header()).await?;
                 }
                 Err((cid, e)) => {
                     // If the error is temporally invalidated, don't add to bad blocks cache.
@@ -425,7 +426,7 @@ where
         // Check block validation cache in store.
         let is_validated = cs
             .is_block_validated(block_cid)
-            .map_err(|e| (block_cid.clone(), e.into()))?;
+            .map_err(|e| (*block_cid, e.into()))?;
         if is_validated {
             return Ok(block);
         }
@@ -435,30 +436,31 @@ where
         let header = block.header();
 
         // Check to ensure all optional values exist
-        block_sanity_checks(header).map_err(|e| (block_cid.clone(), e.into()))?;
+        block_sanity_checks(header).map_err(|e| (*block_cid, e.into()))?;
 
         let base_ts = Arc::new(
             cs.tipset_from_keys(header.parents())
-                .map_err(|e| (block_cid.clone(), e.into()))?,
+                .map_err(|e| (*block_cid, e.into()))?,
         );
 
         // Retrieve lookback tipset for validation.
         let lbts = cs
             .get_lookback_tipset_for_round(&base_ts, block.header().epoch())
-            .map_err(|e| (block_cid.clone(), e.into()))?
+            .map_err(|e| (*block_cid, e.into()))?
             .map(Arc::new)
             .unwrap_or_else(|| Arc::clone(&base_ts));
 
         let (lbst, _) = sm.tipset_state::<V>(&lbts).await.map_err(|e| {
             (
-                block_cid.clone(),
+                *block_cid,
                 Error::Validation(format!("Could not update state: {}", e.to_string())),
             )
         })?;
         let lbst = Arc::new(lbst);
 
-        let prev_beacon = chain::latest_beacon_entry(cs.blockstore(), base_ts.as_ref())
-            .map_err(|e| (block_cid.clone(), e.into()))?;
+        let prev_beacon = cs
+            .latest_beacon_entry(base_ts.as_ref())
+            .map_err(|e| (*block_cid, e.into()))?;
         let prev_beacon = Arc::new(prev_beacon);
 
         // Timestamp checks
@@ -466,7 +468,7 @@ where
         let target_timestamp = base_ts.min_timestamp() + BLOCK_DELAY_SECS * (nulls + 1);
         if target_timestamp != header.timestamp() {
             return Err((
-                block_cid.clone(),
+                *block_cid,
                 Error::Validation(format!(
                     "block had the wrong timestamp: {} != {}",
                     header.timestamp(),
@@ -479,10 +481,7 @@ where
             .expect("Retrieved system time before UNIX epoch")
             .as_secs();
         if header.timestamp() > time_now + ALLOWABLE_CLOCK_DRIFT {
-            return Err((
-                block_cid.clone(),
-                Error::Temporal(time_now, header.timestamp()),
-            ));
+            return Err((*block_cid, Error::Temporal(time_now, header.timestamp())));
         } else if header.timestamp() > time_now {
             warn!(
                 "Got block from the future, but within clock drift threshold, {} > {}",
@@ -494,7 +493,7 @@ where
         // Work address needed for async validations, so necessary to do sync to avoid duplication.
         let work_addr = sm
             .get_miner_work_addr(&lbst, header.miner_address())
-            .map_err(|e| (block_cid.clone(), e.into()))?;
+            .map_err(|e| (*block_cid, e.into()))?;
 
         // Async validations
 
@@ -737,12 +736,12 @@ where
         // combine vec of error strings and return Validation error with this resultant string
         if !error_vec.is_empty() {
             let error_string = error_vec.join(", ");
-            return Err((block_cid.clone(), Error::Validation(error_string)));
+            return Err((*block_cid, Error::Validation(error_string)));
         }
 
         cs.mark_block_as_validated(block_cid).map_err(|e| {
             (
-                block_cid.clone(),
+                *block_cid,
                 Error::Validation(format!(
                     "failed to mark block {} as validated: {}",
                     block_cid, e
@@ -1035,9 +1034,8 @@ mod tests {
             SyncWorker {
                 state: Default::default(),
                 beacon,
-                state_manager: Arc::new(StateManager::new(db)),
-                chain_store,
-                network: SyncNetworkContext::new(local_sender, Default::default()),
+                state_manager: Arc::new(StateManager::new(chain_store)),
+                network: SyncNetworkContext::new(local_sender, Default::default(), db),
                 genesis: genesis_ts,
                 bad_blocks: Default::default(),
                 verifier: Default::default(),

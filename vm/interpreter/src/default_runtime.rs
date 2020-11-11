@@ -8,7 +8,7 @@ use actor::*;
 use address::{Address, Protocol};
 use blocks::BlockHeader;
 use byteorder::{BigEndian, WriteBytesExt};
-use cid::{multihash::Blake2b256, Cid};
+use cid::{Cid, Code::Blake2b256};
 use clock::ChainEpoch;
 use crypto::{DomainSeparationTag, Signature};
 use fil_types::{verifier::ProofVerifier, DevnetParams, NetworkParams, NetworkVersion, Randomness};
@@ -433,7 +433,7 @@ where
     ) -> Result<Randomness, ActorError> {
         let r = self
             .rand
-            .get_chain_randomness(self.state.store(), personalization, rand_epoch, entropy)
+            .get_chain_randomness(personalization, rand_epoch, entropy)
             .map_err(|e| e.downcast_fatal("could not get randomness"))?;
 
         Ok(Randomness(r))
@@ -447,7 +447,7 @@ where
     ) -> Result<Randomness, ActorError> {
         let r = self
             .rand
-            .get_beacon_randomness(self.state.store(), personalization, rand_epoch, entropy)
+            .get_beacon_randomness(personalization, rand_epoch, entropy)
             .map_err(|e| e.downcast_fatal("could not get randomness"))?;
 
         Ok(Randomness(r))
@@ -509,8 +509,11 @@ where
 
         // Update the state
         self.allow_internal = false;
-        let r = f(&mut state, self)?;
+        let r = f(&mut state, self);
         self.allow_internal = true;
+
+        // Return error after allow_internal is reset
+        let r = r?;
 
         let c = self.put(&state)?;
 
@@ -584,7 +587,7 @@ where
         self.state
             .set_actor(
                 &address,
-                ActorState::new(code_id, EMPTY_ARR_CID.clone(), 0.into(), 0),
+                ActorState::new(code_id, *EMPTY_ARR_CID, 0.into(), 0),
             )
             .map_err(|e| e.downcast_fatal("creating actor entry"))
     }
@@ -785,14 +788,13 @@ where
 
     fn batch_verify_seals(
         &self,
-        vis: &[(Address, &Vec<SealVerifyInfo>)],
+        vis: &[(&Address, &Vec<SealVerifyInfo>)],
     ) -> Result<HashMap<Address, Vec<bool>>, Box<dyn StdError>> {
         // Gas charged for batch verify in actor
 
-        // TODO ideal to not use rayon https://github.com/ChainSafe/forest/issues/676
         let out = vis
             .par_iter()
-            .map(|(addr, seals)| {
+            .map(|(&addr, seals)| {
                 let results = seals
                     .par_iter()
                     .map(|s| {
@@ -807,7 +809,7 @@ where
                         }
                     })
                     .collect();
-                (*addr, results)
+                (addr, results)
             })
             .collect();
         Ok(out)
@@ -1010,18 +1012,18 @@ fn make_actor(addr: &Address) -> Result<ActorState, ActorError> {
 
 fn new_bls_account_actor() -> ActorState {
     ActorState {
-        code: ACCOUNT_ACTOR_CODE_ID.clone(),
+        code: *ACCOUNT_ACTOR_CODE_ID,
         balance: TokenAmount::from(0),
-        state: EMPTY_ARR_CID.clone(),
+        state: *EMPTY_ARR_CID,
         sequence: 0,
     }
 }
 
 fn new_secp256k1_account_actor() -> ActorState {
     ActorState {
-        code: ACCOUNT_ACTOR_CODE_ID.clone(),
+        code: *ACCOUNT_ACTOR_CODE_ID,
         balance: TokenAmount::from(0),
-        state: EMPTY_ARR_CID.clone(),
+        state: *EMPTY_ARR_CID,
         sequence: 0,
     }
 }

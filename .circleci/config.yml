@@ -219,7 +219,7 @@ jobs:
       - checkout
       - when:
           condition:
-            equal: [master, << pipeline.git.branch >>]
+            equal: [main, << pipeline.git.branch >>]
           steps:
           - run:
               name: Install rust toolchain
@@ -253,12 +253,7 @@ jobs:
                 export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Coverflow-checks=off"
                 make build
                 git submodule update --init
-                sudo make run-vectors
-                sudo make test-all
-          - run:
-              name: Upload to codecov
-              command: |
-                grcov ./target/debug -s . -t lcov --llvm --branch --ignore-not-existing --ignore="target/debug/build/*" --ignore="**/tests/*" -o lcov.info;
+                grcov ./target/debug -s . -t lcov --llvm --branch --ignore-not-existing --ignore="tests/*" --ignore="target/debug/build/*" --ignore="**/tests/*" -o lcov.info;
                 bash <(curl -s https://codecov.io/bash) -f lcov.info;
   publish-docs:
     executor: test-executor
@@ -267,7 +262,7 @@ jobs:
       - checkout
       - when:
           condition:
-            equal: [master, << pipeline.git.branch >>]
+            equal: [main, << pipeline.git.branch >>]
           steps:
             - build_setup
             - restore_cargo_package_cache
@@ -323,7 +318,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - main
     jobs:
       - prefetch-crates
       - install:
@@ -335,14 +330,14 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - main
   coverage:
     jobs:
       - coverage:
           filters:
             branches:
               only:
-                - master
+                - main
   security:
     jobs:
       - prefetch-crates

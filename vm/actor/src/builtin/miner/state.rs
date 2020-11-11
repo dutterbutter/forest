@@ -10,7 +10,7 @@ use crate::{make_map_with_root, u64_key, ActorDowncast};
 use address::Address;
 use ahash::AHashSet;
 use bitfield::BitField;
-use cid::{multihash::Blake2b256, Cid};
+use cid::{Cid, Code::Blake2b256};
 use clock::ChainEpoch;
 use encoding::{serde_bytes, tuple::*, BytesDe, Cbor};
 use fil_types::{
@@ -115,7 +115,7 @@ impl State {
             initial_pledge_requirement: TokenAmount::default(),
 
             pre_committed_sectors: empty_map_cid,
-            pre_committed_sectors_expiry: empty_array_cid.clone(),
+            pre_committed_sectors_expiry: empty_array_cid,
             allocated_sectors: empty_bitfield_cid,
             sectors: empty_array_cid,
             proving_period_start: period_start,
@@ -200,7 +200,7 @@ impl State {
         Ok(())
     }
 
-    pub fn mask_sector_number<BS: BlockStore>(
+    pub fn mask_sector_numbers<BS: BlockStore>(
         &mut self,
         store: &BS,
         sector_numbers: &BitField,
@@ -399,14 +399,15 @@ impl State {
         store: &BS,
         current_epoch: ChainEpoch,
         sector_size: SectorSize,
-        deadline_sectors: DeadlineSectorMap,
+        mut deadline_sectors: DeadlineSectorMap,
     ) -> Result<(), Box<dyn StdError>> {
         let mut deadlines = self.load_deadlines(store)?;
         let sectors = Sectors::load(store, &self.sectors)?;
 
         for (deadline_idx, partition_sectors) in deadline_sectors.iter() {
             let deadline_info =
-                new_deadline_info(self.proving_period_start, deadline_idx, current_epoch);
+                new_deadline_info(self.proving_period_start, deadline_idx, current_epoch)
+                    .next_not_elapsed();
             let new_expiration = deadline_info.last();
             let mut deadline = deadlines.load_deadline(store, deadline_idx)?;
 

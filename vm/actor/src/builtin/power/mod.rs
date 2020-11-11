@@ -110,7 +110,7 @@ impl Actor {
                 *INIT_ACTOR_ADDR,
                 init::Method::Exec as u64,
                 Serialized::serialize(init::ExecParams {
-                    code_cid: MINER_ACTOR_CODE_ID.clone(),
+                    code_cid: *MINER_ACTOR_CODE_ID,
                     constructor_params,
                 })?,
                 value,
@@ -474,9 +474,8 @@ impl Actor {
             Ok(())
         })?;
 
-        // TODO update this to not need to create vector to verify these things (ref batch_v_s)
-        let verif_arr: Vec<(Address, &Vec<SealVerifyInfo>)> =
-            verifies.iter().map(|(a, v)| (*a, v)).collect();
+        // TODO if verifies is ever Rayon compatible, this won't be needed
+        let verif_arr: Vec<(&Address, &Vec<SealVerifyInfo>)> = verifies.iter().collect();
         let res = rt
             .syscalls()
             .batch_verify_seals(verif_arr.as_slice())
