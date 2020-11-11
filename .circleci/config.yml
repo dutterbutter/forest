@@ -253,6 +253,7 @@ jobs:
                 export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Coverflow-checks=off"
                 make build
                 git submodule update --init
+                sudo make test-all
                 grcov ./target/debug -s . -t lcov --llvm --branch --ignore-not-existing --ignore="tests/*" --ignore="target/debug/build/*" --ignore="**/tests/*" -o lcov.info;
                 bash <(curl -s https://codecov.io/bash) -f lcov.info;
   publish-docs:
