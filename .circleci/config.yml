@@ -219,7 +219,7 @@ jobs:
       - checkout
       - when:
           condition:
-            equal: [main, << pipeline.git.branch >>]
+            equal: [master, << pipeline.git.branch >>]
           steps:
           - run:
               name: Install rust toolchain
@@ -254,8 +254,11 @@ jobs:
                 make build
                 git submodule update --init
                 sudo make test-all
-                grcov ./target/debug -s . -t lcov --llvm --branch --ignore-not-existing --ignore="tests/*" --ignore="target/debug/build/*" --ignore="**/tests/*" -o lcov.info;
-                bash <(curl -s https://codecov.io/bash) -f lcov.info;
+          - run:
+              name: Upload to codecov
+              command: |
+                grcov ./target/debug -s . -t coveralls --llvm --branch --ignore-not-existing --ignore="tests/*" --ignore="target/debug/build/*" --ignore="**/tests/*" --token ${CODE_COV_TOKEN} > coveralls.json;
+                bash <(curl -s https://codecov.io/bash) -f coveralls.json;
   publish-docs:
     executor: test-executor
     description: Publish documentation to GitHub pages
@@ -338,7 +341,7 @@ workflows:
           filters:
             branches:
               only:
-                - main
+                - master
   security:
     jobs:
       - prefetch-crates
