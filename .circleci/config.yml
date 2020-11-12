@@ -257,7 +257,7 @@ jobs:
           - run:
               name: Upload to codecov
               command: |
-                grcov ./target/debug -s . -t coveralls --llvm --branch --ignore-not-existing --ignore="tests/*" --ignore="target/debug/build/*" --ignore="**/tests/*" --token ${CODE_COV_TOKEN} > coveralls.json;
+                grcov ./target/debug -s . -t coveralls --ignore-not-existing --ignore="tests/*" --ignore="target/debug/build/*" --ignore="**/tests/*" --token ${CODE_COV_TOKEN} > coveralls.json;
                 bash <(curl -s https://codecov.io/bash) -f coveralls.json;
   publish-docs:
     executor: test-executor
